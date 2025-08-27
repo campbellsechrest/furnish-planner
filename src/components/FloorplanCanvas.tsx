@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
-import { Canvas as FabricCanvas, Rect, Line, Text, Group } from "fabric";
+import { Canvas as FabricCanvas, Rect, Line, Text, Group, IText } from "fabric";
 import { toast } from "sonner";
+import { ContextMenu } from "./ContextMenu";
+import { useContextMenu } from "@/hooks/useContextMenu";
 
 interface FloorplanCanvasProps {
   activeTool: string;
@@ -18,6 +20,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const [gridSize] = useState(20);
   const [majorGridSize] = useState(100);
+  const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
+  const [isEditingText, setIsEditingText] = useState(false);
 
   const snapToGrid = (coordinate: number, gridSize: number = 20) => {
     return Math.round(coordinate / gridSize) * gridSize;
@@ -140,8 +144,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       transparentCorners: false,
     });
 
-    // Create furniture label
-    const furnitureText = new Text(furniture.name, {
+    // Create furniture label with inline editing
+    const furnitureText = new IText(furniture.name, {
       left: x + width / 2,
       top: y + height / 2,
       fontSize: Math.min(width / 8, 14),
@@ -150,6 +154,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       originX: "center",
       originY: "center",
       selectable: false,
+      editable: true,
       evented: false,
     });
 
@@ -262,12 +267,19 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           top: snappedY,
           width: 0,
           height: 0,
-          fill: "transparent",
+          fill: "rgba(59, 130, 246, 0.1)", // Semi-transparent blue
           stroke: "#3b82f6",
           strokeWidth: 2,
           selectable: true,
         });
         fabricCanvas.add(room);
+        
+        // Send room to back layer by default
+        const objects = fabricCanvas.getObjects();
+        const roomIndex = objects.indexOf(room);
+        if (roomIndex !== -1) {
+          fabricCanvas.moveObjectTo(room, 0);
+        }
       });
 
       fabricCanvas.on("mouse:move", (e) => {
@@ -284,10 +296,15 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           left: width < 0 ? snappedX : startPoint.x,
           top: height < 0 ? snappedY : startPoint.y,
         });
+        
         fabricCanvas.renderAll();
+        updateRoomDimensions(room, startPoint, { x: snappedX, y: snappedY });
       });
 
       fabricCanvas.on("mouse:up", () => {
+        if (room && startPoint) {
+          finalizeRoomDimensions(room);
+        }
         setIsDrawing(false);
         setStartPoint(null);
         room = null;
@@ -323,19 +340,71 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       }
     });
 
-    // Handle double-click for text editing
+    // Handle right-click and ctrl+click for context menu
+    fabricCanvas.on("mouse:down", (e) => {
+      if (e.e instanceof MouseEvent && (e.e.button === 2 || (e.e.ctrlKey && e.e.button === 0))) { // Right click or Ctrl+Left click
+        e.e.preventDefault();
+        if (e.target) {
+          showContextMenu(e.e.clientX, e.e.clientY, e.target);
+        }
+      }
+    });
+
+    // Handle double-click for inline text editing
     fabricCanvas.on("mouse:dblclick", (e) => {
       if (e.target && (e.target as any).furnitureText) {
         const group = e.target;
         const textObject = (group as any).furnitureText;
-        const currentText = textObject.text;
-
-        const newText = prompt("Enter new name:", currentText);
-        if (newText && newText.trim()) {
-          textObject.set("text", newText.trim());
+        
+        // Make text editable
+        textObject.set({
+          selectable: true,
+          editable: true,
+          evented: true,
+        });
+        
+        // Ungroup temporarily for editing
+        const objects = (group as any)._objects;
+        fabricCanvas.remove(group);
+        objects.forEach((obj: any) => fabricCanvas.add(obj));
+        
+        fabricCanvas.setActiveObject(textObject);
+        textObject.enterEditing();
+        setIsEditingText(true);
+        
+        // Handle text editing completion
+        textObject.on('editing:exited', () => {
+          setIsEditingText(false);
+          // Regroup objects
+          const rect = objects[0];
+          textObject.set({
+            selectable: false,
+            editable: false,
+            evented: false,
+          });
+          
+          const newGroup = new Group([rect, textObject], {
+            left: rect.left,
+            top: rect.top,
+            selectable: true,
+            hasControls: true,
+            hasBorders: true,
+            cornerColor: "#3b82f6",
+            cornerSize: 8,
+            transparentCorners: false,
+          });
+          
+          (newGroup as any).furnitureText = textObject;
+          (newGroup as any).furnitureData = (group as any).furnitureData;
+          
+          fabricCanvas.remove(rect);
+          fabricCanvas.remove(textObject);
+          fabricCanvas.add(newGroup);
+          fabricCanvas.setActiveObject(newGroup);
           fabricCanvas.renderAll();
-          toast("Furniture name updated");
-        }
+          
+          toast("Text updated");
+        });
       }
     });
 
@@ -359,6 +428,78 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     });
 
   }, [activeTool, fabricCanvas, isDrawing, startPoint, onObjectSelect]);
+
+  // Room dimension functions
+  const updateRoomDimensions = (room: Rect, start: { x: number; y: number }, end: { x: number; y: number }) => {
+    if (!fabricCanvas) return;
+    
+    // Remove existing dimension labels
+    const existingLabels = fabricCanvas.getObjects().filter((obj: any) => obj.isDimensionLabel);
+    existingLabels.forEach((label: any) => fabricCanvas.remove(label));
+    
+    const width = Math.abs(end.x - start.x);
+    const height = Math.abs(end.y - start.y);
+    
+    // Convert pixels to feet (20px = 1 foot)
+    const widthFeet = Math.round(width / 20 * 10) / 10;
+    const heightFeet = Math.round(height / 20 * 10) / 10;
+    
+    const left = Math.min(start.x, end.x);
+    const top = Math.min(start.y, end.y);
+    
+    // Width label (bottom)
+    const widthLabel = new Text(`${widthFeet}'`, {
+      left: left + width / 2,
+      top: top + height + 15,
+      fontSize: 12,
+      fill: "#3b82f6",
+      fontFamily: "Arial",
+      originX: "center",
+      originY: "center",
+      selectable: false,
+      evented: false,
+    });
+    (widthLabel as any).isDimensionLabel = true;
+    
+    // Height label (right)
+    const heightLabel = new Text(`${heightFeet}'`, {
+      left: left + width + 15,
+      top: top + height / 2,
+      fontSize: 12,
+      fill: "#3b82f6",
+      fontFamily: "Arial",
+      originX: "center",
+      originY: "center",
+      selectable: false,
+      evented: false,
+    });
+    (heightLabel as any).isDimensionLabel = true;
+    
+    fabricCanvas.add(widthLabel);
+    fabricCanvas.add(heightLabel);
+  };
+
+  const finalizeRoomDimensions = (room: Rect) => {
+    // Keep the dimension labels permanent
+    toast("Room created with dimensions");
+  };
+
+  // Context menu handlers
+  const handleBringToFront = () => {
+    if (contextMenu.target && fabricCanvas) {
+      fabricCanvas.bringObjectToFront(contextMenu.target);
+      fabricCanvas.renderAll();
+      toast("Brought to front");
+    }
+  };
+
+  const handleSendToBack = () => {
+    if (contextMenu.target && fabricCanvas) {
+      fabricCanvas.sendObjectToBack(contextMenu.target);
+      fabricCanvas.renderAll();
+      toast("Sent to back");
+    }
+  };
 
   const addDimension = (x1: number, y1: number, x2: number, y2: number) => {
     if (!fabricCanvas) return;
@@ -405,8 +546,18 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   }));
 
   return (
-    <div className="flex-1 bg-canvas-bg border border-border rounded-lg overflow-hidden shadow-lg">
-      <canvas ref={canvasRef} className="w-full h-full" />
-    </div>
+    <>
+      <div className="flex-1 bg-canvas-bg border border-border rounded-lg overflow-hidden shadow-lg">
+        <canvas ref={canvasRef} className="w-full h-full" />
+      </div>
+      <ContextMenu
+        isVisible={contextMenu.isVisible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        onClose={hideContextMenu}
+        onBringToFront={handleBringToFront}
+        onSendToBack={handleSendToBack}
+      />
+    </>
   );
 });
