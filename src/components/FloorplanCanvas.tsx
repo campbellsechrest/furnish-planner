@@ -293,6 +293,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           cornerColor: "#3b82f6",
           cornerSize: 8,
           transparentCorners: false,
+          hoverCursor: 'move',
+          moveCursor: 'move',
         });
         
         // Assign temporary ID for dimension tracking during creation
@@ -300,13 +302,6 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         
         fabricCanvas.add(room);
         console.log("Room rectangle created and added");
-        
-        // Send room to back layer and then select it
-        const objects = fabricCanvas.getObjects();
-        const roomIndex = objects.indexOf(room);
-        if (roomIndex !== -1) {
-          fabricCanvas.moveObjectTo(room, 0);
-        }
         
         // Auto-select the room after creation
         fabricCanvas.setActiveObject(room);
@@ -457,6 +452,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         const obj = e.selected[0];
         setSelectedObject(obj);
         onObjectSelect(obj);
+        // Ensure rooms are interactable above the grid while selected
+        if ((obj as any).id && (obj as any).id.startsWith('room_')) {
+          fabricCanvas.bringObjectToFront(obj);
+        }
         updateDeleteButtonPosition(obj);
       }
     });
