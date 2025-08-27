@@ -27,6 +27,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     show: false, x: 0, y: 0 
   });
   const roomLabelsRef = useRef<Record<string, { width: Text; height: Text }>>({});
+  const roomCounterRef = useRef(1);
 
   const snapToGrid = (coordinate: number, gridSize: number = 20) => {
     return Math.round(coordinate / gridSize) * gridSize;
@@ -386,11 +387,67 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         (fabricCanvas as any).currentWall = null;
       } else if (activeTool === "room" && isDrawing) {
         console.log("Room mouse up");
-        const room = (fabricCanvas as any).currentRoom;
+        const room = (fabricCanvas as any).currentRoom as Rect | null;
         if (room && startPoint) {
-          // Assign unique ID to room for persistent dimension tracking
-          (room as any).id = (room as any).id || `room_${Date.now()}`;
-          finalizeRoomDimensions(room);
+          // Preserve or assign unique ID to room for persistent dimension tracking
+          const roomId = (room as any).id || `room_${Date.now()}`;
+          (room as any).id = roomId;
+
+          // Calculate final rect bounds
+          const rectLeft = (room as any).left as number;
+          const rectTop = (room as any).top as number;
+          const rectWidth = Math.max(1, (room as any).width as number);
+          const rectHeight = Math.max(1, (room as any).height as number);
+
+          // Create room label text (centered)
+          const label = new IText(`Room ${roomCounterRef.current}`, {
+            left: rectLeft + rectWidth / 2,
+            top: rectTop + rectHeight / 2,
+            fontSize: Math.min(rectWidth / 8, 16),
+            fill: "#1e40af",
+            fontFamily: "Arial",
+            originX: "center",
+            originY: "center",
+            selectable: false,
+            editable: true,
+            evented: false,
+          });
+
+          // Group the room rect and label together for unified move/resize
+          const roomGroup = new Group([room, label], {
+            left: rectLeft,
+            top: rectTop,
+            selectable: true,
+            evented: true,
+            hasControls: true,
+            hasBorders: true,
+            lockScalingFlip: true,
+            cornerColor: "#3b82f6",
+            cornerSize: 8,
+            transparentCorners: false,
+          });
+          (roomGroup as any).id = roomId;
+          (roomGroup as any).roomText = label;
+          (roomGroup as any).isRoom = true;
+          (roomGroup as any).setControlsVisibility?.({
+            tl: true, tr: true, bl: true, br: true,
+            ml: true, mt: true, mr: true, mb: true,
+            mtr: true,
+          });
+
+          // Replace the temp rect with the final group
+          fabricCanvas.remove(room);
+          fabricCanvas.add(roomGroup);
+          fabricCanvas.setActiveObject(roomGroup);
+          setSelectedObject(roomGroup);
+          if (onObjectSelect) onObjectSelect(roomGroup);
+
+          // Increment room counter for next room
+          roomCounterRef.current += 1;
+
+          // Ensure dimension labels persist and reflect the new group bounds
+          updatePersistentRoomDimensions(roomGroup);
+          toast("Room created with dimensions");
         }
         (fabricCanvas as any).currentRoom = null;
         console.log("Room drawing completed");
@@ -405,34 +462,17 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       if (e.target && (e.target as any).furnitureText) {
         const group = e.target;
         const textObject = (group as any).furnitureText;
-        
-        // Make text editable
-        textObject.set({
-          selectable: true,
-          editable: true,
-          evented: true,
-        });
-        
-        // Ungroup temporarily for editing
+        textObject.set({ selectable: true, editable: true, evented: true });
         const objects = (group as any)._objects;
         fabricCanvas.remove(group);
         objects.forEach((obj: any) => fabricCanvas.add(obj));
-        
         fabricCanvas.setActiveObject(textObject);
         textObject.enterEditing();
         setIsEditingText(true);
-        
-        // Handle text editing completion
         textObject.on('editing:exited', () => {
           setIsEditingText(false);
-          // Regroup objects
           const rect = objects[0];
-          textObject.set({
-            selectable: false,
-            editable: false,
-            evented: false,
-          });
-          
+          textObject.set({ selectable: false, editable: false, evented: false });
           const newGroup = new Group([rect, textObject], {
             left: rect.left,
             top: rect.top,
@@ -443,17 +483,49 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
             cornerSize: 8,
             transparentCorners: false,
           });
-          
           (newGroup as any).furnitureText = textObject;
           (newGroup as any).furnitureData = (group as any).furnitureData;
-          
           fabricCanvas.remove(rect);
           fabricCanvas.remove(textObject);
           fabricCanvas.add(newGroup);
           fabricCanvas.setActiveObject(newGroup);
           fabricCanvas.renderAll();
-          
           toast("Text updated");
+        });
+      } else if (e.target && (e.target as any).roomText) {
+        const group = e.target;
+        const textObject = (group as any).roomText as IText;
+        textObject.set({ selectable: true, editable: true, evented: true });
+        const objects = (group as any)._objects;
+        fabricCanvas.remove(group);
+        objects.forEach((obj: any) => fabricCanvas.add(obj));
+        fabricCanvas.setActiveObject(textObject);
+        textObject.enterEditing();
+        setIsEditingText(true);
+        textObject.on('editing:exited', () => {
+          setIsEditingText(false);
+          const rect = objects[0];
+          textObject.set({ selectable: false, editable: false, evented: false });
+          const newGroup = new Group([rect, textObject], {
+            left: rect.left,
+            top: rect.top,
+            selectable: true,
+            hasControls: true,
+            hasBorders: true,
+            lockScalingFlip: true,
+            cornerColor: "#3b82f6",
+            cornerSize: 8,
+            transparentCorners: false,
+          });
+          (newGroup as any).roomText = textObject;
+          (newGroup as any).id = (group as any).id;
+          (newGroup as any).isRoom = true;
+          fabricCanvas.remove(rect);
+          fabricCanvas.remove(textObject);
+          fabricCanvas.add(newGroup);
+          fabricCanvas.setActiveObject(newGroup);
+          fabricCanvas.renderAll();
+          toast("Room name updated");
         });
       }
     });
