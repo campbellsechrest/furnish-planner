@@ -34,6 +34,7 @@ All colors MUST be HSL.
     --tool-hover: 210 75% 50%;
     --canvas-bg: 0 0% 98%;
     --grid-line: 210 15% 85%;
+    --grid-major: 210 15% 75%;
     --dimension-line: 25 85% 55%;
     --wall-color: 215 15% 25%;
     
@@ -100,6 +101,7 @@ All colors MUST be HSL.
     --tool-hover: 210 75% 60%;
     --canvas-bg: 215 20% 10%;
     --grid-line: 215 15% 20%;
+    --grid-major: 215 15% 30%;
     --dimension-line: 25 85% 60%;
     --wall-color: 210 15% 80%;
     

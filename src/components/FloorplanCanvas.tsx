@@ -12,6 +12,44 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect }: FloorplanCanvasP
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [gridSize] = useState(20);
+  const [majorGridSize] = useState(100);
+
+  const snapToGrid = (coordinate: number, gridSize: number = 20) => {
+    return Math.round(coordinate / gridSize) * gridSize;
+  };
+
+  const addGridToCanvas = (canvas: FabricCanvas) => {
+    const canvasWidth = canvas.getWidth();
+    const canvasHeight = canvas.getHeight();
+
+    // Minor grid lines (every 20px)
+    for (let i = 0; i <= canvasWidth; i += gridSize) {
+      const isMainLine = i % majorGridSize === 0;
+      const line = new Line([i, 0, i, canvasHeight], {
+        stroke: isMainLine ? "#9ca3af" : "#d1d5db",
+        strokeWidth: isMainLine ? 1 : 0.5,
+        selectable: false,
+        evented: false,
+        hoverCursor: 'default',
+        moveCursor: 'default',
+      });
+      canvas.add(line);
+    }
+
+    for (let i = 0; i <= canvasHeight; i += gridSize) {
+      const isMainLine = i % majorGridSize === 0;
+      const line = new Line([0, i, canvasWidth, i], {
+        stroke: isMainLine ? "#9ca3af" : "#d1d5db",
+        strokeWidth: isMainLine ? 1 : 0.5,
+        selectable: false,
+        evented: false,
+        hoverCursor: 'default',
+        moveCursor: 'default',
+      });
+      canvas.add(line);
+    }
+  };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -19,36 +57,11 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect }: FloorplanCanvasP
     const canvas = new FabricCanvas(canvasRef.current, {
       width: 1200,
       height: 800,
-      backgroundColor: "hsl(var(--canvas-bg))",
+      backgroundColor: "#fafafa",
       selection: activeTool === "select",
     });
 
-    // Add grid
-    const gridSize = 20;
-    const canvasWidth = canvas.getWidth();
-    const canvasHeight = canvas.getHeight();
-
-    // Vertical lines
-    for (let i = 0; i <= canvasWidth; i += gridSize) {
-      const line = new Line([i, 0, i, canvasHeight], {
-        stroke: "hsl(var(--grid-line))",
-        strokeWidth: 0.5,
-        selectable: false,
-        evented: false,
-      });
-      canvas.add(line);
-    }
-
-    // Horizontal lines
-    for (let i = 0; i <= canvasHeight; i += gridSize) {
-      const line = new Line([0, i, canvasWidth, i], {
-        stroke: "hsl(var(--grid-line))",
-        strokeWidth: 0.5,
-        selectable: false,
-        evented: false,
-      });
-      canvas.add(line);
-    }
+    addGridToCanvas(canvas);
 
     setFabricCanvas(canvas);
     toast("Canvas ready! Start designing your floorplan.");
@@ -74,11 +87,14 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect }: FloorplanCanvasP
 
       fabricCanvas.on('mouse:down', (e) => {
         if (!e.pointer) return;
+        const snappedX = snapToGrid(e.pointer.x);
+        const snappedY = snapToGrid(e.pointer.y);
+        
         setIsDrawing(true);
-        setStartPoint({ x: e.pointer.x, y: e.pointer.y });
+        setStartPoint({ x: snappedX, y: snappedY });
 
-        wall = new Line([e.pointer.x, e.pointer.y, e.pointer.x, e.pointer.y], {
-          stroke: "hsl(var(--wall-color))",
+        wall = new Line([snappedX, snappedY, snappedX, snappedY], {
+          stroke: "#ef4444",
           strokeWidth: 8,
           selectable: true,
         });
@@ -87,10 +103,12 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect }: FloorplanCanvasP
 
       fabricCanvas.on('mouse:move', (e) => {
         if (!isDrawing || !wall || !e.pointer) return;
+        const snappedX = snapToGrid(e.pointer.x);
+        const snappedY = snapToGrid(e.pointer.y);
         
         wall.set({
-          x2: e.pointer.x,
-          y2: e.pointer.y,
+          x2: snappedX,
+          y2: snappedY,
         });
         fabricCanvas.renderAll();
       });
@@ -105,16 +123,19 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect }: FloorplanCanvasP
 
       fabricCanvas.on('mouse:down', (e) => {
         if (!e.pointer) return;
+        const snappedX = snapToGrid(e.pointer.x);
+        const snappedY = snapToGrid(e.pointer.y);
+        
         setIsDrawing(true);
-        setStartPoint({ x: e.pointer.x, y: e.pointer.y });
+        setStartPoint({ x: snappedX, y: snappedY });
 
         room = new Rect({
-          left: e.pointer.x,
-          top: e.pointer.y,
+          left: snappedX,
+          top: snappedY,
           width: 0,
           height: 0,
           fill: "transparent",
-          stroke: "hsl(var(--primary))",
+          stroke: "#3b82f6",
           strokeWidth: 2,
           selectable: true,
         });
@@ -123,15 +144,17 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect }: FloorplanCanvasP
 
       fabricCanvas.on('mouse:move', (e) => {
         if (!isDrawing || !room || !e.pointer || !startPoint) return;
+        const snappedX = snapToGrid(e.pointer.x);
+        const snappedY = snapToGrid(e.pointer.y);
         
-        const width = e.pointer.x - startPoint.x;
-        const height = e.pointer.y - startPoint.y;
+        const width = snappedX - startPoint.x;
+        const height = snappedY - startPoint.y;
         
         room.set({
           width: Math.abs(width),
           height: Math.abs(height),
-          left: width < 0 ? e.pointer.x : startPoint.x,
-          top: height < 0 ? e.pointer.y : startPoint.y,
+          left: width < 0 ? snappedX : startPoint.x,
+          top: height < 0 ? snappedY : startPoint.y,
         });
         fabricCanvas.renderAll();
       });
@@ -191,33 +214,8 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect }: FloorplanCanvasP
   const clearCanvas = () => {
     if (!fabricCanvas) return;
     fabricCanvas.clear();
-    fabricCanvas.backgroundColor = "hsl(var(--canvas-bg))";
-    
-    // Re-add grid
-    const gridSize = 20;
-    const canvasWidth = fabricCanvas.getWidth();
-    const canvasHeight = fabricCanvas.getHeight();
-
-    for (let i = 0; i <= canvasWidth; i += gridSize) {
-      const line = new Line([i, 0, i, canvasHeight], {
-        stroke: "hsl(var(--grid-line))",
-        strokeWidth: 0.5,
-        selectable: false,
-        evented: false,
-      });
-      fabricCanvas.add(line);
-    }
-
-    for (let i = 0; i <= canvasHeight; i += gridSize) {
-      const line = new Line([0, i, canvasWidth, i], {
-        stroke: "hsl(var(--grid-line))",
-        strokeWidth: 0.5,
-        selectable: false,
-        evented: false,
-      });
-      fabricCanvas.add(line);
-    }
-
+    fabricCanvas.backgroundColor = "#fafafa";
+    addGridToCanvas(fabricCanvas);
     fabricCanvas.renderAll();
     toast("Canvas cleared!");
   };
