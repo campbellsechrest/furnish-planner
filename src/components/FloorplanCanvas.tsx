@@ -26,6 +26,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const [deleteButton, setDeleteButton] = useState<{ show: boolean; x: number; y: number }>({ 
     show: false, x: 0, y: 0 
   });
+  const roomLabelsRef = useRef<Record<string, { width: Text; height: Text }>>({});
 
   const snapToGrid = (coordinate: number, gridSize: number = 20) => {
     return Math.round(coordinate / gridSize) * gridSize;
@@ -504,9 +505,6 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     const roomId = (room as any).id;
     if (!roomId) return;
     
-    // Always remove ALL existing labels for this room to prevent duplicates
-    removeRoomDimensionLabels(roomId);
-    
     const width = Math.abs(end.x - start.x);
     const height = Math.abs(end.y - start.y);
     
@@ -517,7 +515,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     const left = Math.min(start.x, end.x);
     const top = Math.min(start.y, end.y);
     
-    // Only create new labels if room has meaningful size
+    // Only update/create labels if room has meaningful size
     if (width > 10 && height > 10) {
       createRoomDimensionLabels(roomId, left, top, width, height, widthFeet, heightFeet);
     }
@@ -526,15 +524,12 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const updatePersistentRoomDimensions = (room: any) => {
     if (!fabricCanvas || !room.id) return;
     
-    // Remove ALL existing labels for this room
-    removeRoomDimensionLabels(room.id);
-    
     // Get current room bounds
     const bounds = room.getBoundingRect();
     const widthFeet = Math.round(bounds.width / 20 * 10) / 10;
     const heightFeet = Math.round(bounds.height / 20 * 10) / 10;
     
-    // Only create labels if room has meaningful size
+    // Only create/update labels if room has meaningful size
     if (bounds.width > 10 && bounds.height > 10) {
       createRoomDimensionLabels(room.id, bounds.left, bounds.top, bounds.width, bounds.height, widthFeet, heightFeet);
       fabricCanvas.renderAll();
@@ -544,6 +539,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   // Helper function to remove all dimension labels for a specific room
   const removeRoomDimensionLabels = (roomId: string) => {
     if (!fabricCanvas) return;
+
+    const existing = roomLabelsRef.current[roomId];
+    if (existing) {
+      fabricCanvas.remove(existing.width);
+      fabricCanvas.remove(existing.height);
+      delete roomLabelsRef.current[roomId];
+      return;
+    }
     
     const labelsToRemove = fabricCanvas.getObjects().filter((obj: any) => 
       obj.isDimensionLabel && obj.roomId === roomId
@@ -554,10 +557,25 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const createRoomDimensionLabels = (roomId: string, left: number, top: number, width: number, height: number, widthFeet: number, heightFeet: number) => {
     if (!fabricCanvas) return;
     
-    // Double-check: remove any existing labels for this room before creating new ones
-    removeRoomDimensionLabels(roomId);
-    
-    // Width label (bottom center) - only one
+    const existing = roomLabelsRef.current[roomId];
+
+    if (existing) {
+      // Update existing labels positions and text
+      existing.width.set({
+        left: left + width / 2,
+        top: top + height + 15,
+        text: `${widthFeet}'`,
+      } as any);
+      existing.height.set({
+        left: left + width + 15,
+        top: top + height / 2,
+        text: `${heightFeet}'`,
+      } as any);
+      fabricCanvas.renderAll();
+      return;
+    }
+
+    // Create width label (bottom center)
     const widthLabel = new Text(`${widthFeet}'`, {
       left: left + width / 2,
       top: top + height + 15,
@@ -574,9 +592,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     });
     (widthLabel as any).isDimensionLabel = true;
     (widthLabel as any).roomId = roomId;
-    (widthLabel as any).dimensionType = "width"; // Mark the type
+    (widthLabel as any).dimensionType = "width";
     
-    // Height label (right center) - only one
+    // Create height label (right center)
     const heightLabel = new Text(`${heightFeet}'`, {
       left: left + width + 15,
       top: top + height / 2,
@@ -593,8 +611,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     });
     (heightLabel as any).isDimensionLabel = true;
     (heightLabel as any).roomId = roomId;
-    (heightLabel as any).dimensionType = "height"; // Mark the type
-    
+    (heightLabel as any).dimensionType = "height";
+
+    roomLabelsRef.current[roomId] = { width: widthLabel, height: heightLabel };
+
     fabricCanvas.add(widthLabel);
     fabricCanvas.add(heightLabel);
   };
