@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
-import { Canvas as FabricCanvas, Rect, Line, Text, Group, IText } from "fabric";
+import { Canvas as FabricCanvas, Rect, Line, Text, Group, IText, util } from "fabric";
 import { toast } from "sonner";
 import { ContextMenu } from "./ContextMenu";
 import { useContextMenu } from "@/hooks/useContextMenu";
@@ -100,6 +100,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     const previousState = canvasHistory[historyIndex - 1];
     
     fabricCanvas.loadFromJSON(previousState, () => {
+      addGridToCanvas(fabricCanvas);
       fabricCanvas.renderAll();
       setHistoryIndex(prev => prev - 1);
       isUndoRedoRef.current = false;
@@ -113,6 +114,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     const nextState = canvasHistory[historyIndex + 1];
     
     fabricCanvas.loadFromJSON(nextState, () => {
+      addGridToCanvas(fabricCanvas);
       fabricCanvas.renderAll();
       setHistoryIndex(prev => prev + 1);
       isUndoRedoRef.current = false;
@@ -137,9 +139,13 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         hoverCursor: 'default',
         moveCursor: 'default',
       });
+      (line as any).isGridLine = true; // Mark as grid line
       canvas.add(line);
+      canvas.sendObjectToBack(line);
+
     }
 
+    // Horizontal grid lines
     for (let i = 0; i <= canvasHeight; i += gridSize) {
       const isMainLine = i % majorGridSize === 0;
       const line = new Line([0, i, canvasWidth, i], {
@@ -150,7 +156,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         hoverCursor: 'default',
         moveCursor: 'default',
       });
+      (line as any).isGridLine = true; // Mark as grid line
       canvas.add(line);
+      canvas.sendObjectToBack(line);
     }
   };
 
