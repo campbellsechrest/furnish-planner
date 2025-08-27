@@ -8,6 +8,7 @@ import { toast } from "sonner";
 const Index = () => {
   const [activeTool, setActiveTool] = useState("select");
   const [selectedObject, setSelectedObject] = useState(null);
+  const [selectedFurniture, setSelectedFurniture] = useState(null);
 
   const handleToolChange = (tool: string) => {
     setActiveTool(tool);
@@ -26,7 +27,8 @@ const Index = () => {
   };
 
   const handleFurnitureSelect = (item: any) => {
-    toast(`Selected ${item.name} - Click on canvas to place it`);
+    setSelectedFurniture(item);
+    toast(`${item.name} selected - Click on canvas to place it`);
     setActiveTool("furniture");
   };
 
@@ -39,7 +41,10 @@ const Index = () => {
   };
 
   const handleClear = () => {
-    toast("Canvas cleared!");
+    setSelectedObject(null);
+    setSelectedFurniture(null);
+    setActiveTool("select");
+    // Canvas will be cleared by the FloorplanCanvas component
   };
 
   return (
@@ -59,6 +64,8 @@ const Index = () => {
           <FloorplanCanvas
             activeTool={activeTool}
             onObjectSelect={handleObjectSelect}
+            selectedFurniture={selectedFurniture}
+            onClear={handleClear}
           />
         </div>
         
