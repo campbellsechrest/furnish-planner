@@ -37,6 +37,36 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     return Math.round(coordinate / gridSize) * gridSize;
   };
 
+  const snapObjectToGrid = (obj: any) => {
+    if (!obj) return;
+    
+    const snappedLeft = snapToGrid(obj.left);
+    const snappedTop = snapToGrid(obj.top);
+    
+    obj.set({
+      left: snappedLeft,
+      top: snappedTop,
+    });
+  };
+
+  const snapObjectSizeToGrid = (obj: any) => {
+    if (!obj) return;
+    
+    const snappedWidth = snapToGrid(obj.width * obj.scaleX);
+    const snappedHeight = snapToGrid(obj.height * obj.scaleY);
+    
+    obj.set({
+      width: snappedWidth,
+      height: snappedHeight,
+      scaleX: 1,
+      scaleY: 1,
+    });
+  };
+
+  const snapRotationToIncrement = (angle: number, increment: number = 15) => {
+    return Math.round(angle / increment) * increment;
+  };
+
   const addGridToCanvas = (canvas: FabricCanvas) => {
     const canvasWidth = canvas.getWidth();
     const canvasHeight = canvas.getHeight();
@@ -676,6 +706,12 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
     // Handle object movement and scaling to update dimensions
     fabricCanvas.on("object:moving", (e) => {
+      // Snap to grid during movement
+      if (e.target) {
+        snapObjectToGrid(e.target);
+        fabricCanvas.renderAll();
+      }
+      
       if (e.target === selectedObject) {
         updateDeleteButtonPosition(e.target);
       }
@@ -686,6 +722,12 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     });
 
     fabricCanvas.on("object:scaling", (e) => {
+      // Snap size to grid during scaling
+      if (e.target) {
+        snapObjectSizeToGrid(e.target);
+        fabricCanvas.renderAll();
+      }
+      
       // Update room dimensions when room is scaled
       if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
         updatePersistentRoomDimensions(e.target);
@@ -696,6 +738,13 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     });
 
     fabricCanvas.on("object:modified", (e) => {
+      // Final snap to grid after modification
+      if (e.target) {
+        snapObjectToGrid(e.target);
+        snapObjectSizeToGrid(e.target);
+        fabricCanvas.renderAll();
+      }
+      
       // Update room dimensions when room modification is complete
       if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
         updatePersistentRoomDimensions(e.target);
@@ -706,6 +755,13 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     });
 
     fabricCanvas.on("object:rotating", (e) => {
+      // Snap rotation to 15-degree increments
+      if (e.target) {
+        const snappedAngle = snapRotationToIncrement(e.target.angle || 0);
+        e.target.set({ angle: snappedAngle });
+        fabricCanvas.renderAll();
+      }
+      
       // Keep text centered during rotation
       updateTextPositionAndSize(e.target);
     });
