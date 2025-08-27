@@ -28,6 +28,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   });
   const roomLabelsRef = useRef<Record<string, { width: Text; height: Text }>>({});
   const roomCounterRef = useRef(1);
+  const isDraggingRef = useRef(false);
+  const dragStartedRef = useRef(false);
 
   const snapToGrid = (coordinate: number, gridSize: number = 20) => {
     return Math.round(coordinate / gridSize) * gridSize;
@@ -252,15 +254,13 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     fabricCanvas.off("mouse:move");
     fabricCanvas.off("mouse:up");
 
-    // Track mouse drag state
-    let isDragging = false;
-    let dragStarted = false;
+    // Track mouse drag state via refs to persist across re-renders
 
     // Consolidate all mouse:down handlers to avoid conflicts
     fabricCanvas.on("mouse:down", (e) => {
       // Reset drag tracking
-      isDragging = false;
-      dragStarted = false;
+      isDraggingRef.current = false;
+      dragStartedRef.current = false;
 
       // Handle right-click and ctrl+click for context menu first
       const isRightClick = e.e instanceof MouseEvent && e.e.button === 2;
@@ -286,7 +286,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
         setIsDrawing(true);
         setStartPoint({ x: snappedX, y: snappedY });
-        dragStarted = true;
+        dragStartedRef.current = true;
 
         const wall = new Line([snappedX, snappedY, snappedX, snappedY], {
           stroke: "#ef4444",
@@ -326,16 +326,16 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       if (!e.pointer) return;
 
       // Mark as dragging if mouse moves while pressed
-      if (startPoint && !isDragging) {
-        isDragging = true;
+      if (startPoint && !isDraggingRef.current) {
+        isDraggingRef.current = true;
         
         // Start room creation only when dragging begins
-        if (activeTool === "room" && !e.target && !dragStarted) {
+        if (activeTool === "room" && !e.target && !dragStartedRef.current && !(fabricCanvas as any).currentRoom) {
           const snappedX = snapToGrid(startPoint.x);
           const snappedY = snapToGrid(startPoint.y);
           
           setIsDrawing(true);
-          dragStarted = true;
+          dragStartedRef.current = true;
 
           const room = new Rect({
             left: snappedX,
@@ -425,7 +425,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     // Consolidate all mouse:up handlers
     fabricCanvas.on("mouse:up", (e) => {
       // Handle click-and-release on empty canvas to switch to select mode
-      if (!isDragging && !e.target && activeTool !== "select" && activeTool !== "dimension") {
+      if (!isDraggingRef.current && !e.target && activeTool !== "select" && activeTool !== "dimension") {
         // Switch to select mode only if we didn't drag
         if (onObjectSelect) {
           onObjectSelect("select"); // Signal to parent to change tool
@@ -546,6 +546,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       
       setIsDrawing(false);
       setStartPoint(null);
+      isDraggingRef.current = false;
+      dragStartedRef.current = false;
     });
 
     // Handle double-click for inline text editing
