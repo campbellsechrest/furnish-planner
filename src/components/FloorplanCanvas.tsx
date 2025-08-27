@@ -288,6 +288,11 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           stroke: "#3b82f6",
           strokeWidth: 2,
           selectable: true,
+          hasControls: true,
+          hasBorders: true,
+          cornerColor: "#3b82f6",
+          cornerSize: 8,
+          transparentCorners: false,
         });
         
         // Assign temporary ID for dimension tracking during creation
