@@ -52,6 +52,17 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				// Professional design tool colors
+				tool: {
+					active: 'hsl(var(--tool-active))',
+					hover: 'hsl(var(--tool-hover))'
+				},
+				canvas: {
+					bg: 'hsl(var(--canvas-bg))',
+					grid: 'hsl(var(--grid-line))'
+				},
+				dimension: 'hsl(var(--dimension-line))',
+				wall: 'hsl(var(--wall-color))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',

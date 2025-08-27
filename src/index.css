@@ -2,32 +2,50 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+/* Professional Interior Design Tool - Design System 
 All colors MUST be HSL.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 215 25% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 215 25% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 210 85% 42%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 210 15% 92%;
+    --secondary-foreground: 215 25% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 210 15% 95%;
+    --muted-foreground: 215 15% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 25 85% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Tool-specific colors */
+    --tool-active: 210 85% 42%;
+    --tool-hover: 210 75% 50%;
+    --canvas-bg: 0 0% 98%;
+    --grid-line: 210 15% 85%;
+    --dimension-line: 25 85% 55%;
+    --wall-color: 215 15% 25%;
+    
+    /* Professional gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(210 85% 42%), hsl(210 75% 50%));
+    --gradient-canvas: linear-gradient(180deg, hsl(0 0% 98%), hsl(210 10% 96%));
+    --gradient-toolbar: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 15% 98%));
+    
+    /* Shadows for precision UI */
+    --shadow-toolbar: 0 2px 12px hsl(210 25% 15% / 0.08);
+    --shadow-panel: 0 4px 24px hsl(210 25% 15% / 0.12);
+    --shadow-active: 0 0 0 2px hsl(210 85% 42% / 0.3);
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
@@ -56,26 +74,44 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 215 25% 8%;
+    --foreground: 210 20% 92%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 215 25% 10%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 215 25% 10%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 210 85% 55%;
+    --primary-foreground: 215 25% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 215 15% 15%;
+    --secondary-foreground: 210 20% 85%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 215 15% 12%;
+    --muted-foreground: 215 15% 65%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 25 85% 60%;
+    --accent-foreground: 215 25% 8%;
+
+    /* Dark mode tool colors */
+    --tool-active: 210 85% 55%;
+    --tool-hover: 210 75% 60%;
+    --canvas-bg: 215 20% 10%;
+    --grid-line: 215 15% 20%;
+    --dimension-line: 25 85% 60%;
+    --wall-color: 210 15% 80%;
+    
+    /* Dark gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(210 85% 55%), hsl(210 75% 65%));
+    --gradient-canvas: linear-gradient(180deg, hsl(215 20% 10%), hsl(215 15% 8%));
+    --gradient-toolbar: linear-gradient(180deg, hsl(215 25% 12%), hsl(215 20% 10%));
+    
+    /* Dark shadows */
+    --shadow-toolbar: 0 2px 12px hsl(0 0% 0% / 0.2);
+    --shadow-panel: 0 4px 24px hsl(0 0% 0% / 0.3);
+    --shadow-active: 0 0 0 2px hsl(210 85% 55% / 0.4);
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
