@@ -202,8 +202,13 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     // Add custom properties
     (group as any).furnitureData = furniture;
     (group as any).furnitureText = furnitureText;
+    (group as any).isFurniture = true;
 
     canvas.add(group);
+    
+    // Automatically bring furniture to front (above rooms)
+    canvas.bringObjectToFront(group);
+    
     canvas.setActiveObject(group);
     canvas.renderAll();
 
@@ -333,11 +338,12 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           mtr: true,
         });
         
-        // Assign temporary ID for dimension tracking during creation
-        (room as any).id = `room_${Date.now()}`;
-        
-        fabricCanvas.add(room);
-        console.log("Room rectangle created and added");
+          // Assign temporary ID for dimension tracking during creation
+          (room as any).id = `room_${Date.now()}`;
+          (room as any).isRoom = true;
+          
+          fabricCanvas.add(room);
+          console.log("Room rectangle created and added");
         
         // Auto-select the room after creation
         fabricCanvas.setActiveObject(room);
@@ -487,6 +493,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
           // Add the final group and select it
           fabricCanvas.add(roomGroup);
+          
+          // Move all existing furniture to front to maintain layering
+          fabricCanvas.getObjects().forEach(obj => {
+            if ((obj as any).isFurniture) {
+              fabricCanvas.bringObjectToFront(obj);
+            }
+          });
+          
           fabricCanvas.setActiveObject(roomGroup);
           setSelectedObject(roomGroup);
           if (onObjectSelect) onObjectSelect(roomGroup);
@@ -816,6 +830,17 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const handleBringToFront = () => {
     if (contextMenu.target && fabricCanvas) {
       fabricCanvas.bringObjectToFront(contextMenu.target);
+      
+      // If it's furniture, make sure all furniture stays above rooms
+      if ((contextMenu.target as any).isFurniture) {
+        fabricCanvas.getObjects().forEach(obj => {
+          if ((obj as any).isFurniture && obj !== contextMenu.target) {
+            fabricCanvas.bringObjectToFront(obj);
+          }
+        });
+        fabricCanvas.bringObjectToFront(contextMenu.target);
+      }
+      
       fabricCanvas.renderAll();
       toast("Brought to front");
     }
@@ -823,7 +848,25 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
   const handleSendToBack = () => {
     if (contextMenu.target && fabricCanvas) {
-      fabricCanvas.sendObjectToBack(contextMenu.target);
+      // If it's furniture, only send to back among furniture items
+      if ((contextMenu.target as any).isFurniture) {
+        const furnitureObjects = fabricCanvas.getObjects().filter(obj => (obj as any).isFurniture);
+        const targetIndex = furnitureObjects.indexOf(contextMenu.target);
+        
+        if (targetIndex > 0) {
+          fabricCanvas.sendObjectBackwards(contextMenu.target);
+        }
+        
+        // Ensure all furniture stays above rooms
+        fabricCanvas.getObjects().forEach(obj => {
+          if ((obj as any).isFurniture) {
+            fabricCanvas.bringObjectToFront(obj);
+          }
+        });
+      } else {
+        fabricCanvas.sendObjectToBack(contextMenu.target);
+      }
+      
       fabricCanvas.renderAll();
       toast("Sent to back");
     }
