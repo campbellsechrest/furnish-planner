@@ -28,9 +28,8 @@ const Index = () => {
   };
 
   const handleFurnitureSelect = (item: any) => {
-    setSelectedFurniture(item);
-    toast(`${item.name} selected - Click on canvas to place it`);
-    setActiveTool("furniture");
+    // Just show a message for now, drag and drop is the main interaction
+    toast(`Drag ${item.name} to the canvas to place it`);
   };
 
   const handleSave = () => {
@@ -43,7 +42,6 @@ const Index = () => {
 
   const handleClear = () => {
     setSelectedObject(null);
-    setSelectedFurniture(null);
     setActiveTool("select");
     canvasRef.current?.clearCanvas();
   };
@@ -66,7 +64,6 @@ const Index = () => {
             ref={canvasRef}
             activeTool={activeTool}
             onObjectSelect={handleObjectSelect}
-            selectedFurniture={selectedFurniture}
           />
         </div>
         

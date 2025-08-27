@@ -82,7 +82,12 @@ export const FurnitureLibrary = ({ onFurnitureSelect }: FurnitureLibraryProps) =
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className="flex items-center p-3 rounded-lg border border-border hover:border-primary hover:shadow-sm cursor-pointer transition-all duration-200 bg-background"
+                className="flex items-center p-3 rounded-lg border border-border hover:border-primary hover:shadow-sm cursor-grab active:cursor-grabbing transition-all duration-200 bg-background"
+                draggable={true}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("furniture", JSON.stringify(item));
+                  e.dataTransfer.effectAllowed = "copy";
+                }}
                 onClick={() => onFurnitureSelect(item)}
               >
                 <div className={`p-2 rounded-md ${item.color} mr-3`}>
