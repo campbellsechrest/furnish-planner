@@ -212,7 +212,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   useEffect(() => {
     if (!fabricCanvas) return;
 
-    fabricCanvas.selection = activeTool === "select";
+    fabricCanvas.selection = true;
     fabricCanvas.isDrawingMode = false;
 
     // Remove previous event listeners
@@ -254,7 +254,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       // Handle tool-specific actions only if no deselection occurred
       if (!e.pointer) return;
 
-      if (activeTool === "wall") {
+      if (activeTool === "wall" && !e.target) {
         console.log("Wall tool mouse down");
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
