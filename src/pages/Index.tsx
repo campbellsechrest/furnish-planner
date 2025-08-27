@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { FloorplanCanvas, FloorplanCanvasRef } from "@/components/FloorplanCanvas";
 import { DesignToolbar } from "@/components/DesignToolbar";
 import { FurnitureLibrary } from "@/components/FurnitureLibrary";
@@ -11,6 +11,8 @@ const Index = () => {
   const [activeTool, setActiveTool] = useState("select");
   const [selectedObject, setSelectedObject] = useState(null);
   const [selectedFurniture, setSelectedFurniture] = useState(null);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const canvasRef = useRef<FloorplanCanvasRef>(null);
 
   const handleToolChange = (tool: string) => {
@@ -54,6 +56,27 @@ const Index = () => {
     canvasRef.current?.clearCanvas();
   };
 
+  const handleUndo = () => {
+    canvasRef.current?.undo();
+    updateUndoRedoState();
+  };
+
+  const handleRedo = () => {
+    canvasRef.current?.redo();
+    updateUndoRedoState();
+  };
+
+  const updateUndoRedoState = () => {
+    setCanUndo(canvasRef.current?.canUndo() || false);
+    setCanRedo(canvasRef.current?.canRedo() || false);
+  };
+
+  // Update undo/redo state periodically
+  useEffect(() => {
+    const interval = setInterval(updateUndoRedoState, 500);
+    return () => clearInterval(interval);
+  }, []);
+
   console.log("Index component rendering with activeTool:", activeTool);
 
   return (
@@ -66,6 +89,10 @@ const Index = () => {
             onClear={handleClear}
             onSave={handleSave}
             onLoad={handleLoad}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={canUndo}
+            canRedo={canRedo}
           />
         </ErrorBoundary>
         

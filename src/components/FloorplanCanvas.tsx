@@ -11,6 +11,10 @@ interface FloorplanCanvasProps {
 
 export interface FloorplanCanvasRef {
   clearCanvas: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
 }
 
 export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasProps>(({ activeTool, onObjectSelect }, ref) => {
@@ -32,6 +36,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const roomCounterRef = useRef(1);
   const isDraggingRef = useRef(false);
   const dragStartedRef = useRef(false);
+  const [canvasHistory, setCanvasHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isUndoRedoRef = useRef(false);
 
   const snapToGrid = (coordinate: number, gridSize: number = 20) => {
     return Math.round(coordinate / gridSize) * gridSize;
@@ -66,6 +73,54 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const snapRotationToIncrement = (angle: number, increment: number = 15) => {
     return Math.round(angle / increment) * increment;
   };
+
+  const saveCanvasState = () => {
+    if (!fabricCanvas || isUndoRedoRef.current) return;
+    
+    const state = JSON.stringify(fabricCanvas.toJSON());
+    
+    // Remove any future history if we're not at the end
+    const newHistory = canvasHistory.slice(0, historyIndex + 1);
+    newHistory.push(state);
+    
+    // Limit history to 50 states
+    if (newHistory.length > 50) {
+      newHistory.shift();
+    } else {
+      setHistoryIndex(prev => prev + 1);
+    }
+    
+    setCanvasHistory(newHistory);
+  };
+
+  const undoCanvas = () => {
+    if (!fabricCanvas || historyIndex <= 0) return;
+    
+    isUndoRedoRef.current = true;
+    const previousState = canvasHistory[historyIndex - 1];
+    
+    fabricCanvas.loadFromJSON(previousState, () => {
+      fabricCanvas.renderAll();
+      setHistoryIndex(prev => prev - 1);
+      isUndoRedoRef.current = false;
+    });
+  };
+
+  const redoCanvas = () => {
+    if (!fabricCanvas || historyIndex >= canvasHistory.length - 1) return;
+    
+    isUndoRedoRef.current = true;
+    const nextState = canvasHistory[historyIndex + 1];
+    
+    fabricCanvas.loadFromJSON(nextState, () => {
+      fabricCanvas.renderAll();
+      setHistoryIndex(prev => prev + 1);
+      isUndoRedoRef.current = false;
+    });
+  };
+
+  const canUndo = () => historyIndex > 0;
+  const canRedo = () => historyIndex < canvasHistory.length - 1;
 
   const addGridToCanvas = (canvas: FabricCanvas) => {
     const canvasWidth = canvas.getWidth();
@@ -191,7 +246,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     canvas.wrapperEl.addEventListener('drop', handleDrop);
 
     toast("Canvas ready! Start designing your floorplan.");
-
+    
+    // Save initial state
+    setTimeout(() => saveCanvasState(), 100);
     return () => {
       canvas.wrapperEl?.removeEventListener('dragover', handleDragOver);
       canvas.wrapperEl?.removeEventListener('drop', handleDrop);
@@ -270,6 +327,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     }
 
     toast(`${furniture.name} added to canvas`);
+    
+    // Save state after adding furniture
+    saveCanvasState();
   };
 
   // Legacy function for compatibility
@@ -752,6 +812,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       
       // Finalize text position and size after modification
       updateTextPositionAndSize(e.target);
+      
+      // Save state after modification
+      setTimeout(() => saveCanvasState(), 100);
     });
 
     fabricCanvas.on("object:rotating", (e) => {
@@ -894,6 +957,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
     fabricCanvas.add(widthLabel);
     fabricCanvas.add(heightLabel);
+    
+    // Save state after room creation
+    saveCanvasState();
   };
 
   const finalizeRoomDimensions = (room: Rect) => {
@@ -968,6 +1034,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       }
       
       toast("Object deleted");
+      
+      // Save state after deletion
+      saveCanvasState();
     }
   };
 
@@ -1045,6 +1114,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
     fabricCanvas.add(dimensionLine);
     fabricCanvas.add(dimensionText);
+    
+    // Save state after adding dimension
+    saveCanvasState();
   };
 
   const clearCanvas = () => {
@@ -1054,11 +1126,20 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     addGridToCanvas(fabricCanvas);
     fabricCanvas.renderAll();
     toast("Canvas cleared!");
+    
+    // Reset history
+    setCanvasHistory([]);
+    setHistoryIndex(-1);
+    setTimeout(() => saveCanvasState(), 100);
   };
 
-  // Expose clearCanvas function to parent component
+  // Expose functions to parent component
   useImperativeHandle(ref, () => ({
-    clearCanvas
+    clearCanvas,
+    undo: undoCanvas,
+    redo: redoCanvas,
+    canUndo,
+    canRedo
   }));
 
   return (

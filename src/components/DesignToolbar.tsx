@@ -20,6 +20,10 @@ interface DesignToolbarProps {
   onClear: () => void;
   onSave: () => void;
   onLoad: () => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export const DesignToolbar = ({ 
@@ -27,7 +31,11 @@ export const DesignToolbar = ({
   onToolChange, 
   onClear, 
   onSave, 
-  onLoad 
+  onLoad,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo
 }: DesignToolbarProps) => {
   const tools = [
     { id: "select", icon: MousePointer2, label: "Select" },
@@ -66,10 +74,24 @@ export const DesignToolbar = ({
 
         {/* Action tools */}
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-10 w-10 p-0" title="Undo">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-10 w-10 p-0" 
+            title="Undo"
+            onClick={onUndo}
+            disabled={!canUndo}
+          >
             <Undo className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" className="h-10 w-10 p-0" title="Redo">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-10 w-10 p-0" 
+            title="Redo"
+            onClick={onRedo}
+            disabled={!canRedo}
+          >
             <Redo className="h-4 w-4" />
           </Button>
         </div>
