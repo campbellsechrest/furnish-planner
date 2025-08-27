@@ -14,6 +14,8 @@ export interface FloorplanCanvasRef {
 }
 
 export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasProps>(({ activeTool, onObjectSelect }, ref) => {
+  console.log("FloorplanCanvas rendering with activeTool:", activeTool);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -68,14 +70,28 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   };
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    console.log("FloorplanCanvas useEffect starting, canvasRef.current:", canvasRef.current);
+    
+    if (!canvasRef.current) {
+      console.error("Canvas ref is null!");
+      return;
+    }
 
-    const canvas = new FabricCanvas(canvasRef.current, {
-      width: 1200,
-      height: 800,
-      backgroundColor: "#fafafa",
-      selection: true,
-    });
+    let canvas: FabricCanvas;
+    
+    try {
+      console.log("Creating FabricCanvas...");
+      canvas = new FabricCanvas(canvasRef.current, {
+        width: 1200,
+        height: 800,
+        backgroundColor: "#fafafa",
+        selection: true,
+      });
+      console.log("FabricCanvas created successfully:", canvas);
+    } catch (error) {
+      console.error("Error creating FabricCanvas:", error);
+      return;
+    }
 
     // Disable right-click context menu on canvas wrapper
     canvas.wrapperEl.addEventListener('contextmenu', (e) => e.preventDefault());

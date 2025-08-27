@@ -3,6 +3,8 @@ import { FloorplanCanvas, FloorplanCanvasRef } from "@/components/FloorplanCanva
 import { DesignToolbar } from "@/components/DesignToolbar";
 import { FurnitureLibrary } from "@/components/FurnitureLibrary";
 import { PropertyPanel } from "@/components/PropertyPanel";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { DiagnosticOverlay } from "@/components/DiagnosticOverlay";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -52,33 +54,46 @@ const Index = () => {
     canvasRef.current?.clearCanvas();
   };
 
+  console.log("Index component rendering with activeTool:", activeTool);
+
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <DesignToolbar
-        activeTool={activeTool}
-        onToolChange={handleToolChange}
-        onClear={handleClear}
-        onSave={handleSave}
-        onLoad={handleLoad}
-      />
-      
-      <div className="flex flex-1 overflow-hidden">
-        <FurnitureLibrary onFurnitureSelect={handleFurnitureSelect} />
-        
-        <div className="flex-1 p-4">
-          <FloorplanCanvas
-            ref={canvasRef}
+    <ErrorBoundary componentName="Index">
+      <div className="h-screen flex flex-col bg-background">
+        <ErrorBoundary componentName="DesignToolbar">
+          <DesignToolbar
             activeTool={activeTool}
-            onObjectSelect={handleObjectSelect}
+            onToolChange={handleToolChange}
+            onClear={handleClear}
+            onSave={handleSave}
+            onLoad={handleLoad}
           />
-        </div>
+        </ErrorBoundary>
         
-        <PropertyPanel
-          selectedObject={selectedObject}
-          onObjectUpdate={handleObjectUpdate}
-        />
+        <div className="flex flex-1 overflow-hidden">
+          <ErrorBoundary componentName="FurnitureLibrary">
+            <FurnitureLibrary onFurnitureSelect={handleFurnitureSelect} />
+          </ErrorBoundary>
+          
+          <ErrorBoundary componentName="FloorplanCanvas">
+            <div className="flex-1 p-4">
+              <FloorplanCanvas
+                ref={canvasRef}
+                activeTool={activeTool}
+                onObjectSelect={handleObjectSelect}
+              />
+            </div>
+          </ErrorBoundary>
+          
+          <ErrorBoundary componentName="PropertyPanel">
+            <PropertyPanel
+              selectedObject={selectedObject}
+              onObjectUpdate={handleObjectUpdate}
+            />
+          </ErrorBoundary>
+        </div>
       </div>
-    </div>
+      <DiagnosticOverlay />
+    </ErrorBoundary>
   );
 };
 
