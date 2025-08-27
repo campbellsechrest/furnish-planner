@@ -182,7 +182,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     const furnitureText = new IText(furniture.name, {
       left: x + width / 2,
       top: y + height / 2,
-      fontSize: Math.min(width / 8, 14),
+      fontSize: 14,
       fill: "#1e40af",
       fontFamily: "Arial",
       originX: "center",
@@ -190,6 +190,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       selectable: false,
       editable: true,
       evented: false,
+      lockScalingX: true,
+      lockScalingY: true,
     });
 
     // Group furniture and text together
@@ -487,7 +489,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           const label = new IText(`Room ${roomCounterRef.current}`, {
             left: rectLeft + rectWidth / 2,
             top: rectTop + rectHeight / 2,
-            fontSize: Math.min(rectWidth / 8, 16),
+            fontSize: 16,
             fill: "#1e40af",
             fontFamily: "Arial",
             originX: "center",
@@ -495,6 +497,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
             selectable: false,
             editable: true,
             evented: false,
+            lockScalingX: true,
+            lockScalingY: true,
           });
 
           // Group the room rect and label together for unified move/resize
@@ -670,6 +674,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
         updatePersistentRoomDimensions(e.target);
       }
+      
+      // Keep text centered and maintain size during scaling
+      updateTextPositionAndSize(e.target);
     });
 
     fabricCanvas.on("object:modified", (e) => {
@@ -677,6 +684,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
         updatePersistentRoomDimensions(e.target);
       }
+      
+      // Finalize text position and size after modification
+      updateTextPositionAndSize(e.target);
+    });
+
+    fabricCanvas.on("object:rotating", (e) => {
+      // Keep text centered during rotation
+      updateTextPositionAndSize(e.target);
     });
 
     // Handle mouse over/out for delete button visibility
@@ -817,6 +832,49 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       setTimeout(() => updatePersistentRoomDimensions(room), 10);
     }
     toast("Room created with dimensions");
+  };
+
+  // Function to update text position and size within groups
+  const updateTextPositionAndSize = (target: any) => {
+    if (!target || !fabricCanvas) return;
+    
+    // Handle furniture text
+    if ((target as any).furnitureText) {
+      const bounds = target.getBoundingRect();
+      const textObj = (target as any).furnitureText;
+      
+      // Calculate center position relative to the group
+      const centerX = bounds.left + bounds.width / 2;
+      const centerY = bounds.top + bounds.height / 2;
+      
+      textObj.set({
+        left: centerX,
+        top: centerY,
+        fontSize: 14,
+        angle: target.angle || 0,
+      });
+      
+      fabricCanvas.renderAll();
+    }
+    
+    // Handle room text
+    if ((target as any).roomText) {
+      const bounds = target.getBoundingRect();
+      const textObj = (target as any).roomText;
+      
+      // Calculate center position relative to the group
+      const centerX = bounds.left + bounds.width / 2;
+      const centerY = bounds.top + bounds.height / 2;
+      
+      textObj.set({
+        left: centerX,
+        top: centerY,
+        fontSize: 16,
+        angle: target.angle || 0,
+      });
+      
+      fabricCanvas.renderAll();
+    }
   };
 
   // Delete button position update
