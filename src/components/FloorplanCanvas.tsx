@@ -252,12 +252,15 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         wall = null;
       });
     } else if (activeTool === "room") {
+      console.log("Room tool activated");
       let room: Rect | null = null;
 
       fabricCanvas.on("mouse:down", (e) => {
         if (!e.pointer) return;
+        console.log("Room mouse down at:", e.pointer.x, e.pointer.y);
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
+        console.log("Snapped coordinates:", snappedX, snappedY);
 
         setIsDrawing(true);
         setStartPoint({ x: snappedX, y: snappedY });
@@ -273,6 +276,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           selectable: true,
         });
         fabricCanvas.add(room);
+        console.log("Room rectangle created and added");
         
         // Send room to back layer by default
         const objects = fabricCanvas.getObjects();
@@ -284,6 +288,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
       fabricCanvas.on("mouse:move", (e) => {
         if (!isDrawing || !room || !e.pointer || !startPoint) return;
+        console.log("Room mouse move:", e.pointer.x, e.pointer.y);
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
 
@@ -302,12 +307,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       });
 
       fabricCanvas.on("mouse:up", () => {
+        console.log("Room mouse up");
         if (room && startPoint) {
           finalizeRoomDimensions(room);
         }
         setIsDrawing(false);
         setStartPoint(null);
         room = null;
+        console.log("Room drawing completed");
       });
     } else if (activeTool === "dimension") {
       // Add dimension tool functionality
