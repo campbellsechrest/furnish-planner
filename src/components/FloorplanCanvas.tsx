@@ -215,49 +215,47 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     fabricCanvas.off("mouse:move");
     fabricCanvas.off("mouse:up");
 
-    if (activeTool === "wall") {
-      let wall: Line | null = null;
+    // Consolidate all mouse:down handlers to avoid conflicts
+    fabricCanvas.on("mouse:down", (e) => {
+      // Handle right-click and ctrl+click for context menu first
+      if (e.e instanceof MouseEvent && (e.e.button === 2 || (e.e.ctrlKey && e.e.button === 0))) {
+        e.e.preventDefault();
+        if (e.target) {
+          showContextMenu(e.e.clientX, e.e.clientY, e.target);
+        }
+        return;
+      }
 
-      fabricCanvas.on("mouse:down", (e) => {
-        if (!e.pointer) return;
+      // Handle canvas deselection
+      if (!e.target && activeTool === "select") {
+        fabricCanvas.discardActiveObject();
+        fabricCanvas.renderAll();
+        if (onObjectSelect) {
+          onObjectSelect(null);
+        }
+        return;
+      }
+
+      // Handle tool-specific actions
+      if (!e.pointer) return;
+
+      if (activeTool === "wall") {
+        console.log("Wall tool mouse down");
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
 
         setIsDrawing(true);
         setStartPoint({ x: snappedX, y: snappedY });
 
-        wall = new Line([snappedX, snappedY, snappedX, snappedY], {
+        const wall = new Line([snappedX, snappedY, snappedX, snappedY], {
           stroke: "#ef4444",
           strokeWidth: 8,
           selectable: true,
         });
         fabricCanvas.add(wall);
-      });
-
-      fabricCanvas.on("mouse:move", (e) => {
-        if (!isDrawing || !wall || !e.pointer) return;
-        const snappedX = snapToGrid(e.pointer.x);
-        const snappedY = snapToGrid(e.pointer.y);
-
-        wall.set({
-          x2: snappedX,
-          y2: snappedY,
-        });
-        fabricCanvas.renderAll();
-      });
-
-      fabricCanvas.on("mouse:up", () => {
-        setIsDrawing(false);
-        setStartPoint(null);
-        wall = null;
-      });
-    } else if (activeTool === "room") {
-      console.log("Room tool activated");
-      let room: Rect | null = null;
-
-      fabricCanvas.on("mouse:down", (e) => {
-        if (!e.pointer) return;
-        console.log("Room mouse down at:", e.pointer.x, e.pointer.y);
+        (fabricCanvas as any).currentWall = wall;
+      } else if (activeTool === "room") {
+        console.log("Room tool mouse down at:", e.pointer.x, e.pointer.y);
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
         console.log("Snapped coordinates:", snappedX, snappedY);
@@ -265,12 +263,12 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         setIsDrawing(true);
         setStartPoint({ x: snappedX, y: snappedY });
 
-        room = new Rect({
+        const room = new Rect({
           left: snappedX,
           top: snappedY,
           width: 0,
           height: 0,
-          fill: "rgba(59, 130, 246, 0.1)", // Semi-transparent blue
+          fill: "rgba(59, 130, 246, 0.1)",
           stroke: "#3b82f6",
           strokeWidth: 2,
           selectable: true,
@@ -278,83 +276,86 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         fabricCanvas.add(room);
         console.log("Room rectangle created and added");
         
-        // Send room to back layer by default
+        // Send room to back layer
         const objects = fabricCanvas.getObjects();
         const roomIndex = objects.indexOf(room);
         if (roomIndex !== -1) {
           fabricCanvas.moveObjectTo(room, 0);
         }
-      });
-
-      fabricCanvas.on("mouse:move", (e) => {
-        if (!isDrawing || !room || !e.pointer || !startPoint) return;
-        console.log("Room mouse move:", e.pointer.x, e.pointer.y);
+        (fabricCanvas as any).currentRoom = room;
+      } else if (activeTool === "dimension") {
+        console.log("Dimension tool mouse down");
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
 
-        const width = snappedX - startPoint.x;
-        const height = snappedY - startPoint.y;
-
-        room.set({
-          width: Math.abs(width),
-          height: Math.abs(height),
-          left: width < 0 ? snappedX : startPoint.x,
-          top: height < 0 ? snappedY : startPoint.y,
-        });
-        
-        fabricCanvas.renderAll();
-        updateRoomDimensions(room, startPoint, { x: snappedX, y: snappedY });
-      });
-
-      fabricCanvas.on("mouse:up", () => {
-        console.log("Room mouse up");
-        if (room && startPoint) {
-          finalizeRoomDimensions(room);
-        }
-        setIsDrawing(false);
-        setStartPoint(null);
-        room = null;
-        console.log("Room drawing completed");
-      });
-    } else if (activeTool === "dimension") {
-      // Add dimension tool functionality
-      let startPoint: { x: number; y: number } | null = null;
-
-      fabricCanvas.on("mouse:down", (e) => {
-        if (!e.pointer) return;
-        const snappedX = snapToGrid(e.pointer.x);
-        const snappedY = snapToGrid(e.pointer.y);
-
-        if (!startPoint) {
-          startPoint = { x: snappedX, y: snappedY };
+        const currentStart = (fabricCanvas as any).dimensionStart;
+        if (!currentStart) {
+          (fabricCanvas as any).dimensionStart = { x: snappedX, y: snappedY };
           toast("Click second point to create dimension");
         } else {
-          addDimension(startPoint.x, startPoint.y, snappedX, snappedY);
-          startPoint = null;
+          addDimension(currentStart.x, currentStart.y, snappedX, snappedY);
+          (fabricCanvas as any).dimensionStart = null;
           toast("Dimension added");
-        }
-      });
-    }
-
-    // Handle canvas clicks for deselection
-    fabricCanvas.on("mouse:down", (e) => {
-      if (!e.target && activeTool === "select") {
-        fabricCanvas.discardActiveObject();
-        fabricCanvas.renderAll();
-        if (onObjectSelect) {
-          onObjectSelect(null);
         }
       }
     });
 
-    // Handle right-click and ctrl+click for context menu
-    fabricCanvas.on("mouse:down", (e) => {
-      if (e.e instanceof MouseEvent && (e.e.button === 2 || (e.e.ctrlKey && e.e.button === 0))) { // Right click or Ctrl+Left click
-        e.e.preventDefault();
-        if (e.target) {
-          showContextMenu(e.e.clientX, e.e.clientY, e.target);
+    // Consolidate all mouse:move handlers
+    fabricCanvas.on("mouse:move", (e) => {
+      if (!isDrawing || !e.pointer) return;
+
+      if (activeTool === "wall") {
+        const wall = (fabricCanvas as any).currentWall;
+        if (wall) {
+          const snappedX = snapToGrid(e.pointer.x);
+          const snappedY = snapToGrid(e.pointer.y);
+          
+          wall.set({
+            x2: snappedX,
+            y2: snappedY,
+          });
+          fabricCanvas.renderAll();
+        }
+      } else if (activeTool === "room") {
+        const room = (fabricCanvas as any).currentRoom;
+        if (room && startPoint) {
+          console.log("Room mouse move:", e.pointer.x, e.pointer.y);
+          const snappedX = snapToGrid(e.pointer.x);
+          const snappedY = snapToGrid(e.pointer.y);
+
+          const width = snappedX - startPoint.x;
+          const height = snappedY - startPoint.y;
+
+          room.set({
+            width: Math.abs(width),
+            height: Math.abs(height),
+            left: width < 0 ? snappedX : startPoint.x,
+            top: height < 0 ? snappedY : startPoint.y,
+          });
+          
+          fabricCanvas.renderAll();
+          updateRoomDimensions(room, startPoint, { x: snappedX, y: snappedY });
         }
       }
+    });
+
+    // Consolidate all mouse:up handlers
+    fabricCanvas.on("mouse:up", () => {
+      if (activeTool === "wall") {
+        console.log("Wall mouse up");
+        (fabricCanvas as any).currentWall = null;
+      } else if (activeTool === "room") {
+        console.log("Room mouse up");
+        const room = (fabricCanvas as any).currentRoom;
+        if (room && startPoint) {
+          finalizeRoomDimensions(room);
+        }
+        (fabricCanvas as any).currentRoom = null;
+        console.log("Room drawing completed");
+      }
+      
+      setIsDrawing(false);
+      setStartPoint(null);
     });
 
     // Handle double-click for inline text editing
