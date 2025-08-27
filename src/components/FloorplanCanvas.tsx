@@ -834,47 +834,32 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     toast("Room created with dimensions");
   };
 
-  // Function to update text position and size within groups
+  // Function to keep text readable and centered while groups transform
   const updateTextPositionAndSize = (target: any) => {
     if (!target || !fabricCanvas) return;
-    
-    // Handle furniture text
+
+    const normalizeText = (textObj: any, baseFont: number) => {
+      if (!textObj) return;
+      textObj.set({
+        fontSize: baseFont,
+        originX: 'center',
+        originY: 'center',
+        angle: 0, // let the group's rotation apply; don't double-rotate
+        // counter-scale so visual size remains constant
+        scaleX: 1 / (target.scaleX || 1),
+        scaleY: 1 / (target.scaleY || 1),
+      });
+    };
+
     if ((target as any).furnitureText) {
-      const bounds = target.getBoundingRect();
-      const textObj = (target as any).furnitureText;
-      
-      // Calculate center position relative to the group
-      const centerX = bounds.left + bounds.width / 2;
-      const centerY = bounds.top + bounds.height / 2;
-      
-      textObj.set({
-        left: centerX,
-        top: centerY,
-        fontSize: 14,
-        angle: target.angle || 0,
-      });
-      
-      fabricCanvas.renderAll();
+      normalizeText((target as any).furnitureText, 14);
     }
-    
-    // Handle room text
+
     if ((target as any).roomText) {
-      const bounds = target.getBoundingRect();
-      const textObj = (target as any).roomText;
-      
-      // Calculate center position relative to the group
-      const centerX = bounds.left + bounds.width / 2;
-      const centerY = bounds.top + bounds.height / 2;
-      
-      textObj.set({
-        left: centerX,
-        top: centerY,
-        fontSize: 16,
-        angle: target.angle || 0,
-      });
-      
-      fabricCanvas.renderAll();
+      normalizeText((target as any).roomText, 16);
     }
+
+    fabricCanvas.renderAll();
   };
 
   // Delete button position update
