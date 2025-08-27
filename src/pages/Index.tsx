@@ -17,7 +17,13 @@ const Index = () => {
   };
 
   const handleObjectSelect = (object: any) => {
-    setSelectedObject(object);
+    if (object === "select") {
+      // Switch to select mode
+      setActiveTool("select");
+      setSelectedObject(null);
+    } else {
+      setSelectedObject(object);
+    }
   };
 
   const handleObjectUpdate = (properties: any) => {

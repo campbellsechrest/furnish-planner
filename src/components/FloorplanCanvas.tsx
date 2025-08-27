@@ -252,8 +252,16 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     fabricCanvas.off("mouse:move");
     fabricCanvas.off("mouse:up");
 
+    // Track mouse drag state
+    let isDragging = false;
+    let dragStarted = false;
+
     // Consolidate all mouse:down handlers to avoid conflicts
     fabricCanvas.on("mouse:down", (e) => {
+      // Reset drag tracking
+      isDragging = false;
+      dragStarted = false;
+
       // Handle right-click and ctrl+click for context menu first
       const isRightClick = e.e instanceof MouseEvent && e.e.button === 2;
       const isCtrlClick = e.e instanceof MouseEvent && e.e.ctrlKey && e.e.button === 0;
@@ -268,27 +276,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         return;
       }
 
-      // Handle canvas deselection - this should happen BEFORE tool-specific actions
-      if (!e.target) {
-        if (selectedObject) {
-          // If there's a selected object, just deselect it
-          fabricCanvas.discardActiveObject();
-          setSelectedObject(null);
-          setDeleteButton({ show: false, x: 0, y: 0 });
-          fabricCanvas.renderAll();
-          if (onObjectSelect) {
-            onObjectSelect(null);
-          }
-          return; // Exit early, don't proceed with tool actions
-        }
-        
-        // Only proceed with tool actions if no object was selected
-        if (activeTool === "select") {
-          return; // Do nothing for select tool on empty canvas
-        }
-      }
-
-      // Handle tool-specific actions only if no deselection occurred
+      // Handle tool-specific actions only for non-select tools and empty canvas
       if (!e.pointer) return;
 
       if (activeTool === "wall" && !e.target) {
@@ -298,6 +286,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
         setIsDrawing(true);
         setStartPoint({ x: snappedX, y: snappedY });
+        dragStarted = true;
 
         const wall = new Line([snappedX, snappedY, snappedX, snappedY], {
           stroke: "#ef4444",
@@ -307,60 +296,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         fabricCanvas.add(wall);
         (fabricCanvas as any).currentWall = wall;
       } else if (activeTool === "room" && !e.target) {
-        // Only create room if no target (clicking on empty canvas) and no selected object
+        // Only start room creation if no target (clicking on empty canvas)
         console.log("Room tool mouse down at:", e.pointer.x, e.pointer.y);
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
         console.log("Snapped coordinates:", snappedX, snappedY);
 
-        setIsDrawing(true);
         setStartPoint({ x: snappedX, y: snappedY });
-
-        const room = new Rect({
-          left: snappedX,
-          top: snappedY,
-          width: 0,
-          height: 0,
-          fill: "rgba(59, 130, 246, 0.1)",
-          stroke: "#3b82f6",
-          strokeWidth: 2,
-          selectable: true,
-          evented: true,
-          hasControls: true,
-          hasBorders: true,
-          lockMovementX: false,
-          lockMovementY: false,
-          lockRotation: false,
-          lockScalingFlip: true,
-          cornerColor: "#3b82f6",
-          cornerSize: 8,
-          transparentCorners: false,
-          hoverCursor: 'move',
-          moveCursor: 'move',
-        });
-        
-        // Ensure all control handles are visible for resizing/rotating
-        (room as any).setControlsVisibility?.({
-          tl: true, tr: true, bl: true, br: true,
-          ml: true, mt: true, mr: true, mb: true,
-          mtr: true,
-        });
-        
-          // Assign temporary ID for dimension tracking during creation
-          (room as any).id = `room_${Date.now()}`;
-          (room as any).isRoom = true;
-          
-          fabricCanvas.add(room);
-          console.log("Room rectangle created and added");
-        
-        // Auto-select the room after creation
-        fabricCanvas.setActiveObject(room);
-        setSelectedObject(room);
-        if (onObjectSelect) {
-          onObjectSelect(room);
-        }
-        
-        (fabricCanvas as any).currentRoom = room;
+        // Don't create room yet, wait for drag
       } else if (activeTool === "dimension") {
         console.log("Dimension tool mouse down");
         const snappedX = snapToGrid(e.pointer.x);
@@ -380,7 +323,69 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
     // Consolidate all mouse:move handlers
     fabricCanvas.on("mouse:move", (e) => {
-      if (!isDrawing || !e.pointer) return;
+      if (!e.pointer) return;
+
+      // Mark as dragging if mouse moves while pressed
+      if (startPoint && !isDragging) {
+        isDragging = true;
+        
+        // Start room creation only when dragging begins
+        if (activeTool === "room" && !e.target && !dragStarted) {
+          const snappedX = snapToGrid(startPoint.x);
+          const snappedY = snapToGrid(startPoint.y);
+          
+          setIsDrawing(true);
+          dragStarted = true;
+
+          const room = new Rect({
+            left: snappedX,
+            top: snappedY,
+            width: 0,
+            height: 0,
+            fill: "rgba(59, 130, 246, 0.1)",
+            stroke: "#3b82f6",
+            strokeWidth: 2,
+            selectable: true,
+            evented: true,
+            hasControls: true,
+            hasBorders: true,
+            lockMovementX: false,
+            lockMovementY: false,
+            lockRotation: false,
+            lockScalingFlip: true,
+            cornerColor: "#3b82f6",
+            cornerSize: 8,
+            transparentCorners: false,
+            hoverCursor: 'move',
+            moveCursor: 'move',
+          });
+          
+          // Ensure all control handles are visible for resizing/rotating
+          (room as any).setControlsVisibility?.({
+            tl: true, tr: true, bl: true, br: true,
+            ml: true, mt: true, mr: true, mb: true,
+            mtr: true,
+          });
+          
+          // Assign temporary ID for dimension tracking during creation
+          (room as any).id = `room_${Date.now()}`;
+          (room as any).isRoom = true;
+          
+          fabricCanvas.add(room);
+          console.log("Room rectangle created and added");
+        
+          // Auto-select the room after creation
+          fabricCanvas.setActiveObject(room);
+          setSelectedObject(room);
+          if (onObjectSelect) {
+            onObjectSelect(room);
+          }
+          
+          (fabricCanvas as any).currentRoom = room;
+        }
+      }
+
+      if (!isDrawing) return;
 
       if (activeTool === "wall") {
         const wall = (fabricCanvas as any).currentWall;
@@ -418,7 +423,22 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     });
 
     // Consolidate all mouse:up handlers
-    fabricCanvas.on("mouse:up", () => {
+    fabricCanvas.on("mouse:up", (e) => {
+      // Handle click-and-release on empty canvas to switch to select mode
+      if (!isDragging && !e.target && activeTool !== "select" && activeTool !== "dimension") {
+        // Switch to select mode only if we didn't drag
+        if (onObjectSelect) {
+          onObjectSelect("select"); // Signal to parent to change tool
+        }
+        // Clear any selected objects
+        if (selectedObject) {
+          fabricCanvas.discardActiveObject();
+          setSelectedObject(null);
+          setDeleteButton({ show: false, x: 0, y: 0 });
+          fabricCanvas.renderAll();
+        }
+      }
+
       if (activeTool === "wall" && isDrawing) {
         console.log("Wall mouse up");
         (fabricCanvas as any).currentWall = null;
