@@ -497,16 +497,15 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
   }, [activeTool, fabricCanvas, isDrawing, startPoint, onObjectSelect, selectedObject]);
 
-  // Room dimension functions - persistent and dynamic labels
+  // Room dimension functions - ensure only one label per dimension
   const updateRoomDimensions = (room: Rect, start: { x: number; y: number }, end: { x: number; y: number }) => {
     if (!fabricCanvas) return;
     
-    // Remove only temporary dimension labels for this room
-    const roomId = (room as any).id || `temp_${Date.now()}`;
-    const existingLabels = fabricCanvas.getObjects().filter((obj: any) => 
-      obj.isDimensionLabel && obj.roomId === roomId
-    );
-    existingLabels.forEach((label: any) => fabricCanvas.remove(label));
+    const roomId = (room as any).id;
+    if (!roomId) return;
+    
+    // Always remove ALL existing labels for this room to prevent duplicates
+    removeRoomDimensionLabels(roomId);
     
     const width = Math.abs(end.x - start.x);
     const height = Math.abs(end.y - start.y);
@@ -518,31 +517,47 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     const left = Math.min(start.x, end.x);
     const top = Math.min(start.y, end.y);
     
-    createRoomDimensionLabels(roomId, left, top, width, height, widthFeet, heightFeet);
+    // Only create new labels if room has meaningful size
+    if (width > 10 && height > 10) {
+      createRoomDimensionLabels(roomId, left, top, width, height, widthFeet, heightFeet);
+    }
   };
 
   const updatePersistentRoomDimensions = (room: any) => {
     if (!fabricCanvas || !room.id) return;
     
-    // Remove existing labels for this room
-    const existingLabels = fabricCanvas.getObjects().filter((obj: any) => 
-      obj.isDimensionLabel && obj.roomId === room.id
-    );
-    existingLabels.forEach((label: any) => fabricCanvas.remove(label));
+    // Remove ALL existing labels for this room
+    removeRoomDimensionLabels(room.id);
     
     // Get current room bounds
     const bounds = room.getBoundingRect();
     const widthFeet = Math.round(bounds.width / 20 * 10) / 10;
     const heightFeet = Math.round(bounds.height / 20 * 10) / 10;
     
-    createRoomDimensionLabels(room.id, bounds.left, bounds.top, bounds.width, bounds.height, widthFeet, heightFeet);
-    fabricCanvas.renderAll();
+    // Only create labels if room has meaningful size
+    if (bounds.width > 10 && bounds.height > 10) {
+      createRoomDimensionLabels(room.id, bounds.left, bounds.top, bounds.width, bounds.height, widthFeet, heightFeet);
+      fabricCanvas.renderAll();
+    }
+  };
+
+  // Helper function to remove all dimension labels for a specific room
+  const removeRoomDimensionLabels = (roomId: string) => {
+    if (!fabricCanvas) return;
+    
+    const labelsToRemove = fabricCanvas.getObjects().filter((obj: any) => 
+      obj.isDimensionLabel && obj.roomId === roomId
+    );
+    labelsToRemove.forEach((label: any) => fabricCanvas.remove(label));
   };
 
   const createRoomDimensionLabels = (roomId: string, left: number, top: number, width: number, height: number, widthFeet: number, heightFeet: number) => {
     if (!fabricCanvas) return;
     
-    // Width label (bottom center)
+    // Double-check: remove any existing labels for this room before creating new ones
+    removeRoomDimensionLabels(roomId);
+    
+    // Width label (bottom center) - only one
     const widthLabel = new Text(`${widthFeet}'`, {
       left: left + width / 2,
       top: top + height + 15,
@@ -554,13 +569,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       originY: "center",
       selectable: false,
       evented: false,
-      backgroundColor: "rgba(255, 255, 255, 0.8)",
-      padding: 2,
+      backgroundColor: "rgba(255, 255, 255, 0.9)",
+      padding: 3,
     });
     (widthLabel as any).isDimensionLabel = true;
     (widthLabel as any).roomId = roomId;
+    (widthLabel as any).dimensionType = "width"; // Mark the type
     
-    // Height label (right center)
+    // Height label (right center) - only one
     const heightLabel = new Text(`${heightFeet}'`, {
       left: left + width + 15,
       top: top + height / 2,
@@ -572,20 +588,25 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       originY: "center",
       selectable: false,
       evented: false,
-      backgroundColor: "rgba(255, 255, 255, 0.8)",
-      padding: 2,
+      backgroundColor: "rgba(255, 255, 255, 0.9)",
+      padding: 3,
     });
     (heightLabel as any).isDimensionLabel = true;
     (heightLabel as any).roomId = roomId;
+    (heightLabel as any).dimensionType = "height"; // Mark the type
     
     fabricCanvas.add(widthLabel);
     fabricCanvas.add(heightLabel);
   };
 
   const finalizeRoomDimensions = (room: Rect) => {
-    // Room labels are now persistent and will remain visible
-    // No need to do anything special here as labels are already created
-    toast("Room created with persistent dimensions");
+    // Ensure final cleanup and single label creation
+    const roomId = (room as any).id;
+    if (roomId) {
+      // Force a final update to ensure clean labels
+      setTimeout(() => updatePersistentRoomDimensions(room), 10);
+    }
+    toast("Room created with dimensions");
   };
 
   // Delete button position update
@@ -607,11 +628,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const handleDeleteObject = () => {
     if (selectedObject && fabricCanvas) {
       // Remove associated dimension labels if it's a room
-      if ((selectedObject as any).id) {
-        const associatedLabels = fabricCanvas.getObjects().filter((obj: any) => 
-          obj.isDimensionLabel && obj.roomId === (selectedObject as any).id
-        );
-        associatedLabels.forEach((label: any) => fabricCanvas.remove(label));
+      if ((selectedObject as any).id && (selectedObject as any).id.startsWith('room_')) {
+        removeRoomDimensionLabels((selectedObject as any).id);
       }
       
       fabricCanvas.remove(selectedObject);
