@@ -65,13 +65,47 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       selection: true,
     });
 
+    addGridToCanvas(canvas);
+    setFabricCanvas(canvas);
+
+    // Handle drag and drop - set up after canvas is created
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "copy";
+      console.log("Drag over canvas");
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      e.preventDefault();
+      console.log("Drop event triggered");
+
+      try {
+        const furnitureData = e.dataTransfer?.getData("furniture");
+        console.log("Furniture data:", furnitureData);
+        if (!furnitureData) {
+          console.log("No furniture data found");
+          return;
+        }
+
+        const furniture = JSON.parse(furnitureData);
+        const rect = canvas.wrapperEl.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const snappedX = snapToGrid(x);
+        const snappedY = snapToGrid(y);
+
+        // Create furniture directly here since canvas is available
+        createFurnitureObjectOnCanvas(canvas, furniture, snappedX, snappedY);
+      } catch (error) {
+        console.error("Error dropping furniture:", error);
+      }
+    };
+
     // Enable drag and drop
     canvas.wrapperEl.addEventListener('dragover', handleDragOver);
     canvas.wrapperEl.addEventListener('drop', handleDrop);
 
-    addGridToCanvas(canvas);
-
-    setFabricCanvas(canvas);
     toast("Canvas ready! Start designing your floorplan.");
 
     return () => {
@@ -81,36 +115,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     };
   }, []);
 
-  // Handle drag and drop
-  const handleDragOver = (e: DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer!.dropEffect = "copy";
-  };
-
-  const handleDrop = (e: DragEvent) => {
-    e.preventDefault();
-    if (!fabricCanvas) return;
-
-    try {
-      const furnitureData = e.dataTransfer?.getData("furniture");
-      if (!furnitureData) return;
-
-      const furniture = JSON.parse(furnitureData);
-      const rect = fabricCanvas.wrapperEl.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      const snappedX = snapToGrid(x);
-      const snappedY = snapToGrid(y);
-
-      createFurnitureObject(furniture, snappedX, snappedY);
-    } catch (error) {
-      console.error("Error dropping furniture:", error);
-    }
-  };
-
-  const createFurnitureObject = (furniture: any, x: number, y: number) => {
-    if (!fabricCanvas) return;
+  const createFurnitureObjectOnCanvas = (canvas: FabricCanvas, furniture: any, x: number, y: number) => {
+    console.log("Creating furniture object:", furniture.name, "at", x, y);
 
     // Parse dimensions (e.g., "84\" x 36\"" -> width: 84, height: 36)
     const dimensions = furniture.dimensions.match(/(\d+).*?x.*?(\d+)/);
@@ -163,15 +169,21 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     (group as any).furnitureData = furniture;
     (group as any).furnitureText = furnitureText;
 
-    fabricCanvas.add(group);
-    fabricCanvas.setActiveObject(group);
-    fabricCanvas.renderAll();
+    canvas.add(group);
+    canvas.setActiveObject(group);
+    canvas.renderAll();
 
     if (onObjectSelect) {
       onObjectSelect(group);
     }
 
     toast(`${furniture.name} added to canvas`);
+  };
+
+  // Legacy function for compatibility
+  const createFurnitureObject = (furniture: any, x: number, y: number) => {
+    if (!fabricCanvas) return;
+    createFurnitureObjectOnCanvas(fabricCanvas, furniture, x, y);
   };
 
   const getColorFromBg = (bgColor: string) => {

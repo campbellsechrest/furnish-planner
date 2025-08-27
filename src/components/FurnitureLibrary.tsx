@@ -85,8 +85,12 @@ export const FurnitureLibrary = ({ onFurnitureSelect }: FurnitureLibraryProps) =
                 className="flex items-center p-3 rounded-lg border border-border hover:border-primary hover:shadow-sm cursor-grab active:cursor-grabbing transition-all duration-200 bg-background"
                 draggable={true}
                 onDragStart={(e) => {
+                  console.log("Drag started:", item.name);
                   e.dataTransfer.setData("furniture", JSON.stringify(item));
                   e.dataTransfer.effectAllowed = "copy";
+                }}
+                onDragEnd={(e) => {
+                  console.log("Drag ended:", item.name);
                 }}
                 onClick={() => onFurnitureSelect(item)}
               >
