@@ -231,19 +231,27 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         return;
       }
 
-      // Handle canvas deselection
-      if (!e.target && activeTool === "select") {
-        fabricCanvas.discardActiveObject();
-        setSelectedObject(null);
-        setDeleteButton({ show: false, x: 0, y: 0 });
-        fabricCanvas.renderAll();
-        if (onObjectSelect) {
-          onObjectSelect(null);
+      // Handle canvas deselection - this should happen BEFORE tool-specific actions
+      if (!e.target) {
+        if (selectedObject) {
+          // If there's a selected object, just deselect it
+          fabricCanvas.discardActiveObject();
+          setSelectedObject(null);
+          setDeleteButton({ show: false, x: 0, y: 0 });
+          fabricCanvas.renderAll();
+          if (onObjectSelect) {
+            onObjectSelect(null);
+          }
+          return; // Exit early, don't proceed with tool actions
         }
-        return;
+        
+        // Only proceed with tool actions if no object was selected
+        if (activeTool === "select") {
+          return; // Do nothing for select tool on empty canvas
+        }
       }
 
-      // Handle tool-specific actions
+      // Handle tool-specific actions only if no deselection occurred
       if (!e.pointer) return;
 
       if (activeTool === "wall") {
@@ -261,7 +269,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         });
         fabricCanvas.add(wall);
         (fabricCanvas as any).currentWall = wall;
-      } else if (activeTool === "room") {
+      } else if (activeTool === "room" && !e.target) {
+        // Only create room if no target (clicking on empty canvas) and no selected object
         console.log("Room tool mouse down at:", e.pointer.x, e.pointer.y);
         const snappedX = snapToGrid(e.pointer.x);
         const snappedY = snapToGrid(e.pointer.y);
