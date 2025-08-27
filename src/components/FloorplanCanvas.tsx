@@ -22,6 +22,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const [majorGridSize] = useState(100);
   const { contextMenu, showContextMenu, hideContextMenu } = useContextMenu();
   const [isEditingText, setIsEditingText] = useState(false);
+  const [selectedObject, setSelectedObject] = useState<any>(null);
+  const [deleteButton, setDeleteButton] = useState<{ show: boolean; x: number; y: number }>({ 
+    show: false, x: 0, y: 0 
+  });
 
   const snapToGrid = (coordinate: number, gridSize: number = 20) => {
     return Math.round(coordinate / gridSize) * gridSize;
@@ -229,6 +233,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       // Handle canvas deselection
       if (!e.target && activeTool === "select") {
         fabricCanvas.discardActiveObject();
+        setSelectedObject(null);
+        setDeleteButton({ show: false, x: 0, y: 0 });
         fabricCanvas.renderAll();
         if (onObjectSelect) {
           onObjectSelect(null);
@@ -276,12 +282,20 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         fabricCanvas.add(room);
         console.log("Room rectangle created and added");
         
-        // Send room to back layer
+        // Send room to back layer and then select it
         const objects = fabricCanvas.getObjects();
         const roomIndex = objects.indexOf(room);
         if (roomIndex !== -1) {
           fabricCanvas.moveObjectTo(room, 0);
         }
+        
+        // Auto-select the room after creation
+        fabricCanvas.setActiveObject(room);
+        setSelectedObject(room);
+        if (onObjectSelect) {
+          onObjectSelect(room);
+        }
+        
         (fabricCanvas as any).currentRoom = room;
       } else if (activeTool === "dimension") {
         console.log("Dimension tool mouse down");
@@ -419,30 +433,54 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     // Object selection events
     fabricCanvas.on("selection:created", (e) => {
       if (onObjectSelect && e.selected) {
-        onObjectSelect(e.selected[0]);
+        const obj = e.selected[0];
+        setSelectedObject(obj);
+        onObjectSelect(obj);
+        updateDeleteButtonPosition(obj);
       }
     });
 
     fabricCanvas.on("selection:updated", (e) => {
       if (onObjectSelect && e.selected) {
-        onObjectSelect(e.selected[0]);
+        const obj = e.selected[0];
+        setSelectedObject(obj);
+        onObjectSelect(obj);
+        updateDeleteButtonPosition(obj);
       }
     });
 
     fabricCanvas.on("selection:cleared", () => {
+      setSelectedObject(null);
+      setDeleteButton({ show: false, x: 0, y: 0 });
       if (onObjectSelect) {
         onObjectSelect(null);
       }
     });
 
-  }, [activeTool, fabricCanvas, isDrawing, startPoint, onObjectSelect]);
+    // Handle object movement to update delete button position
+    fabricCanvas.on("object:moving", (e) => {
+      if (e.target === selectedObject) {
+        updateDeleteButtonPosition(e.target);
+      }
+    });
 
-  // Room dimension functions
+    // Handle mouse over/out for delete button visibility
+    fabricCanvas.on("mouse:over", (e) => {
+      if (e.target === selectedObject) {
+        updateDeleteButtonPosition(e.target);
+      }
+    });
+
+  }, [activeTool, fabricCanvas, isDrawing, startPoint, onObjectSelect, selectedObject]);
+
+  // Room dimension functions - make labels persistent
   const updateRoomDimensions = (room: Rect, start: { x: number; y: number }, end: { x: number; y: number }) => {
     if (!fabricCanvas) return;
     
-    // Remove existing dimension labels
-    const existingLabels = fabricCanvas.getObjects().filter((obj: any) => obj.isDimensionLabel);
+    // Remove only temporary dimension labels for this room
+    const existingLabels = fabricCanvas.getObjects().filter((obj: any) => 
+      obj.isDimensionLabel && obj.roomId === (room as any).id
+    );
     existingLabels.forEach((label: any) => fabricCanvas.remove(label));
     
     const width = Math.abs(end.x - start.x);
@@ -468,6 +506,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       evented: false,
     });
     (widthLabel as any).isDimensionLabel = true;
+    (widthLabel as any).roomId = (room as any).id || Date.now(); // Unique identifier
     
     // Height label (right)
     const heightLabel = new Text(`${heightFeet}'`, {
@@ -482,14 +521,57 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       evented: false,
     });
     (heightLabel as any).isDimensionLabel = true;
+    (heightLabel as any).roomId = (room as any).id || Date.now();
     
     fabricCanvas.add(widthLabel);
     fabricCanvas.add(heightLabel);
   };
 
   const finalizeRoomDimensions = (room: Rect) => {
-    // Keep the dimension labels permanent
+    // Assign unique ID to room for dimension tracking
+    (room as any).id = (room as any).id || Date.now();
+    // Dimension labels are now persistent and linked to the room
     toast("Room created with dimensions");
+  };
+
+  // Delete button position update
+  const updateDeleteButtonPosition = (obj: any) => {
+    if (!obj || !fabricCanvas) return;
+    
+    const objBounds = obj.getBoundingRect();
+    const canvasEl = fabricCanvas.wrapperEl;
+    const canvasRect = canvasEl.getBoundingClientRect();
+    
+    setDeleteButton({
+      show: true,
+      x: canvasRect.left + objBounds.left + objBounds.width - 10,
+      y: canvasRect.top + objBounds.top - 10,
+    });
+  };
+
+  // Handle object deletion
+  const handleDeleteObject = () => {
+    if (selectedObject && fabricCanvas) {
+      // Remove associated dimension labels if it's a room
+      if ((selectedObject as any).id) {
+        const associatedLabels = fabricCanvas.getObjects().filter((obj: any) => 
+          obj.isDimensionLabel && obj.roomId === (selectedObject as any).id
+        );
+        associatedLabels.forEach((label: any) => fabricCanvas.remove(label));
+      }
+      
+      fabricCanvas.remove(selectedObject);
+      fabricCanvas.discardActiveObject();
+      setSelectedObject(null);
+      setDeleteButton({ show: false, x: 0, y: 0 });
+      fabricCanvas.renderAll();
+      
+      if (onObjectSelect) {
+        onObjectSelect(null);
+      }
+      
+      toast("Object deleted");
+    }
   };
 
   // Context menu handlers
@@ -558,6 +640,22 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       <div className="flex-1 bg-canvas-bg border border-border rounded-lg overflow-hidden shadow-lg">
         <canvas ref={canvasRef} className="w-full h-full" />
       </div>
+      
+      {/* Delete button */}
+      {deleteButton.show && (
+        <button
+          className="fixed z-50 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg transition-colors"
+          style={{
+            left: deleteButton.x,
+            top: deleteButton.y,
+          }}
+          onClick={handleDeleteObject}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          ×
+        </button>
+      )}
+      
       <ContextMenu
         isVisible={contextMenu.isVisible}
         x={contextMenu.x}
