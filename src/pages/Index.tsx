@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { FloorplanCanvas } from "@/components/FloorplanCanvas";
+import { useState, useRef } from "react";
+import { FloorplanCanvas, FloorplanCanvasRef } from "@/components/FloorplanCanvas";
 import { DesignToolbar } from "@/components/DesignToolbar";
 import { FurnitureLibrary } from "@/components/FurnitureLibrary";
 import { PropertyPanel } from "@/components/PropertyPanel";
@@ -9,6 +9,7 @@ const Index = () => {
   const [activeTool, setActiveTool] = useState("select");
   const [selectedObject, setSelectedObject] = useState(null);
   const [selectedFurniture, setSelectedFurniture] = useState(null);
+  const canvasRef = useRef<FloorplanCanvasRef>(null);
 
   const handleToolChange = (tool: string) => {
     setActiveTool(tool);
@@ -44,7 +45,7 @@ const Index = () => {
     setSelectedObject(null);
     setSelectedFurniture(null);
     setActiveTool("select");
-    // Canvas will be cleared by the FloorplanCanvas component
+    canvasRef.current?.clearCanvas();
   };
 
   return (
@@ -62,10 +63,10 @@ const Index = () => {
         
         <div className="flex-1 p-4">
           <FloorplanCanvas
+            ref={canvasRef}
             activeTool={activeTool}
             onObjectSelect={handleObjectSelect}
             selectedFurniture={selectedFurniture}
-            onClear={handleClear}
           />
         </div>
         

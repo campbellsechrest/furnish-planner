@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
 import { Canvas as FabricCanvas, Rect, Line, Text } from "fabric";
 import { toast } from "sonner";
 
@@ -6,10 +6,13 @@ interface FloorplanCanvasProps {
   activeTool: string;
   onObjectSelect?: (object: any) => void;
   selectedFurniture?: any;
-  onClear?: () => void;
 }
 
-export const FloorplanCanvas = ({ activeTool, onObjectSelect, selectedFurniture, onClear }: FloorplanCanvasProps) => {
+export interface FloorplanCanvasRef {
+  clearCanvas: () => void;
+}
+
+export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasProps>(({ activeTool, onObjectSelect, selectedFurniture }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [fabricCanvas, setFabricCanvas] = useState<FabricCanvas | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -272,18 +275,16 @@ export const FloorplanCanvas = ({ activeTool, onObjectSelect, selectedFurniture,
     addGridToCanvas(fabricCanvas);
     fabricCanvas.renderAll();
     toast("Canvas cleared!");
-    onClear?.(); // Call parent clear handler if provided
   };
+
+  // Expose clearCanvas function to parent component
+  useImperativeHandle(ref, () => ({
+    clearCanvas
+  }));
 
   return (
     <div className="flex-1 bg-canvas-bg border border-border rounded-lg overflow-hidden shadow-lg">
       <canvas ref={canvasRef} className="w-full h-full" />
-      {/* Expose clearCanvas function to parent */}
-      <div style={{ display: 'none' }} ref={(el) => {
-        if (el && clearCanvas) {
-          (el as any).clearCanvas = clearCanvas;
-        }
-      }} />
     </div>
   );
-};
+});
