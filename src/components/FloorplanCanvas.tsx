@@ -288,13 +288,25 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           stroke: "#3b82f6",
           strokeWidth: 2,
           selectable: true,
+          evented: true,
           hasControls: true,
           hasBorders: true,
+          lockMovementX: false,
+          lockMovementY: false,
+          lockRotation: false,
+          lockScalingFlip: true,
           cornerColor: "#3b82f6",
           cornerSize: 8,
           transparentCorners: false,
           hoverCursor: 'move',
           moveCursor: 'move',
+        });
+        
+        // Ensure all control handles are visible for resizing/rotating
+        (room as any).setControlsVisibility?.({
+          tl: true, tr: true, bl: true, br: true,
+          ml: true, mt: true, mr: true, mb: true,
+          mtr: true,
         });
         
         // Assign temporary ID for dimension tracking during creation
@@ -369,10 +381,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
     // Consolidate all mouse:up handlers
     fabricCanvas.on("mouse:up", () => {
-      if (activeTool === "wall") {
+      if (activeTool === "wall" && isDrawing) {
         console.log("Wall mouse up");
         (fabricCanvas as any).currentWall = null;
-      } else if (activeTool === "room") {
+      } else if (activeTool === "room" && isDrawing) {
         console.log("Room mouse up");
         const room = (fabricCanvas as any).currentRoom;
         if (room && startPoint) {
