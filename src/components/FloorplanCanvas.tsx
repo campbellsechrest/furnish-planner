@@ -78,6 +78,29 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     addGridToCanvas(canvas);
     setFabricCanvas(canvas);
 
+    // E2E testing hooks (exposed only when ?e2e=1)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('e2e') === '1') {
+        (window as any).__fp = {
+          getRooms: () => canvas.getObjects().filter((o: any) => (o as any).isRoom).map((o: any) => ({ id: (o as any).id })),
+          getFirstRoomBounds: () => {
+            const room: any = canvas.getObjects().find((o: any) => (o as any).isRoom);
+            if (!room) return null;
+            const b = room.getBoundingRect();
+            return { left: b.left, top: b.top, width: b.width, height: b.height, id: (room as any).id };
+          },
+          getDimensionLabelsForFirstRoom: () => {
+            const room: any = canvas.getObjects().find((o: any) => (o as any).isRoom);
+            if (!room) return null;
+            const labels = (roomLabelsRef.current as any)[(room as any).id];
+            if (!labels) return null;
+            return { width: (labels.width as any).text, height: (labels.height as any).text };
+          },
+        };
+      }
+    } catch {}
+
     // Handle drag and drop - set up after canvas is created
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
@@ -399,6 +422,33 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           const rectWidth = Math.max(1, (room as any).width as number);
           const rectHeight = Math.max(1, (room as any).height as number);
 
+          // Remove the temporary rect before creating the group to avoid detaching issues
+          fabricCanvas.remove(room);
+
+          // Create a fresh rect for the final room shape
+          const finalRect = new Rect({
+            left: rectLeft,
+            top: rectTop,
+            width: rectWidth,
+            height: rectHeight,
+            fill: "rgba(59, 130, 246, 0.1)",
+            stroke: "#3b82f6",
+            strokeWidth: 2,
+            selectable: true,
+            evented: true,
+            hasControls: true,
+            hasBorders: true,
+            lockMovementX: false,
+            lockMovementY: false,
+            lockRotation: false,
+            lockScalingFlip: true,
+            cornerColor: "#3b82f6",
+            cornerSize: 8,
+            transparentCorners: false,
+            hoverCursor: 'move',
+            moveCursor: 'move',
+          });
+
           // Create room label text (centered)
           const label = new IText(`Room ${roomCounterRef.current}`, {
             left: rectLeft + rectWidth / 2,
@@ -414,7 +464,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           });
 
           // Group the room rect and label together for unified move/resize
-          const roomGroup = new Group([room, label], {
+          const roomGroup = new Group([finalRect, label], {
             left: rectLeft,
             top: rectTop,
             selectable: true,
@@ -435,8 +485,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
             mtr: true,
           });
 
-          // Replace the temp rect with the final group
-          fabricCanvas.remove(room);
+          // Add the final group and select it
           fabricCanvas.add(roomGroup);
           fabricCanvas.setActiveObject(roomGroup);
           setSelectedObject(roomGroup);
@@ -827,7 +876,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   return (
     <>
       <div className="flex-1 bg-canvas-bg border border-border rounded-lg overflow-hidden shadow-lg">
-        <canvas ref={canvasRef} className="w-full h-full" />
+        <canvas ref={canvasRef} className="w-full h-full" data-testid="floorplan-canvas" />
       </div>
       
       {/* Delete button */}

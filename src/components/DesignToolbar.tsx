@@ -55,6 +55,7 @@ export const DesignToolbar = ({
                   : "hover:bg-tool-hover hover:text-white"
               )}
               title={tool.label}
+              data-testid={`tool-${tool.id}`}
             >
               <tool.icon className="h-4 w-4" />
             </Button>
