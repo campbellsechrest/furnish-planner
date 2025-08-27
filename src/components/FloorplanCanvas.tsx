@@ -279,6 +279,10 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           strokeWidth: 2,
           selectable: true,
         });
+        
+        // Assign temporary ID for dimension tracking during creation
+        (room as any).id = `room_${Date.now()}`;
+        
         fabricCanvas.add(room);
         console.log("Room rectangle created and added");
         
@@ -362,6 +366,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         console.log("Room mouse up");
         const room = (fabricCanvas as any).currentRoom;
         if (room && startPoint) {
+          // Assign unique ID to room for persistent dimension tracking
+          (room as any).id = (room as any).id || `room_${Date.now()}`;
           finalizeRoomDimensions(room);
         }
         (fabricCanvas as any).currentRoom = null;
@@ -457,10 +463,28 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       }
     });
 
-    // Handle object movement to update delete button position
+    // Handle object movement and scaling to update dimensions
     fabricCanvas.on("object:moving", (e) => {
       if (e.target === selectedObject) {
         updateDeleteButtonPosition(e.target);
+      }
+      // Update room dimensions when room is moved
+      if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
+        updatePersistentRoomDimensions(e.target);
+      }
+    });
+
+    fabricCanvas.on("object:scaling", (e) => {
+      // Update room dimensions when room is scaled
+      if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
+        updatePersistentRoomDimensions(e.target);
+      }
+    });
+
+    fabricCanvas.on("object:modified", (e) => {
+      // Update room dimensions when room modification is complete
+      if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
+        updatePersistentRoomDimensions(e.target);
       }
     });
 
@@ -473,13 +497,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
   }, [activeTool, fabricCanvas, isDrawing, startPoint, onObjectSelect, selectedObject]);
 
-  // Room dimension functions - make labels persistent
+  // Room dimension functions - persistent and dynamic labels
   const updateRoomDimensions = (room: Rect, start: { x: number; y: number }, end: { x: number; y: number }) => {
     if (!fabricCanvas) return;
     
     // Remove only temporary dimension labels for this room
+    const roomId = (room as any).id || `temp_${Date.now()}`;
     const existingLabels = fabricCanvas.getObjects().filter((obj: any) => 
-      obj.isDimensionLabel && obj.roomId === (room as any).id
+      obj.isDimensionLabel && obj.roomId === roomId
     );
     existingLabels.forEach((label: any) => fabricCanvas.remove(label));
     
@@ -493,45 +518,74 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     const left = Math.min(start.x, end.x);
     const top = Math.min(start.y, end.y);
     
-    // Width label (bottom)
+    createRoomDimensionLabels(roomId, left, top, width, height, widthFeet, heightFeet);
+  };
+
+  const updatePersistentRoomDimensions = (room: any) => {
+    if (!fabricCanvas || !room.id) return;
+    
+    // Remove existing labels for this room
+    const existingLabels = fabricCanvas.getObjects().filter((obj: any) => 
+      obj.isDimensionLabel && obj.roomId === room.id
+    );
+    existingLabels.forEach((label: any) => fabricCanvas.remove(label));
+    
+    // Get current room bounds
+    const bounds = room.getBoundingRect();
+    const widthFeet = Math.round(bounds.width / 20 * 10) / 10;
+    const heightFeet = Math.round(bounds.height / 20 * 10) / 10;
+    
+    createRoomDimensionLabels(room.id, bounds.left, bounds.top, bounds.width, bounds.height, widthFeet, heightFeet);
+    fabricCanvas.renderAll();
+  };
+
+  const createRoomDimensionLabels = (roomId: string, left: number, top: number, width: number, height: number, widthFeet: number, heightFeet: number) => {
+    if (!fabricCanvas) return;
+    
+    // Width label (bottom center)
     const widthLabel = new Text(`${widthFeet}'`, {
       left: left + width / 2,
       top: top + height + 15,
       fontSize: 12,
       fill: "#3b82f6",
       fontFamily: "Arial",
+      fontWeight: "bold",
       originX: "center",
       originY: "center",
       selectable: false,
       evented: false,
+      backgroundColor: "rgba(255, 255, 255, 0.8)",
+      padding: 2,
     });
     (widthLabel as any).isDimensionLabel = true;
-    (widthLabel as any).roomId = (room as any).id || Date.now(); // Unique identifier
+    (widthLabel as any).roomId = roomId;
     
-    // Height label (right)
+    // Height label (right center)
     const heightLabel = new Text(`${heightFeet}'`, {
       left: left + width + 15,
       top: top + height / 2,
       fontSize: 12,
       fill: "#3b82f6",
       fontFamily: "Arial",
+      fontWeight: "bold",
       originX: "center",
       originY: "center",
       selectable: false,
       evented: false,
+      backgroundColor: "rgba(255, 255, 255, 0.8)",
+      padding: 2,
     });
     (heightLabel as any).isDimensionLabel = true;
-    (heightLabel as any).roomId = (room as any).id || Date.now();
+    (heightLabel as any).roomId = roomId;
     
     fabricCanvas.add(widthLabel);
     fabricCanvas.add(heightLabel);
   };
 
   const finalizeRoomDimensions = (room: Rect) => {
-    // Assign unique ID to room for dimension tracking
-    (room as any).id = (room as any).id || Date.now();
-    // Dimension labels are now persistent and linked to the room
-    toast("Room created with dimensions");
+    // Room labels are now persistent and will remain visible
+    // No need to do anything special here as labels are already created
+    toast("Room created with persistent dimensions");
   };
 
   // Delete button position update
