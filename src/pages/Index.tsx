@@ -4,7 +4,6 @@ import { DesignToolbar } from "@/components/DesignToolbar";
 import { FurnitureLibrary } from "@/components/FurnitureLibrary";
 import { PropertyPanel } from "@/components/PropertyPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { DiagnosticOverlay } from "@/components/DiagnosticOverlay";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -119,7 +118,6 @@ const Index = () => {
           </ErrorBoundary>
         </div>
       </div>
-      <DiagnosticOverlay />
     </ErrorBoundary>
   );
 };
