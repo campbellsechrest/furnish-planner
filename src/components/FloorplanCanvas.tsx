@@ -75,6 +75,9 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       selection: true,
     });
 
+    // Disable right-click context menu on canvas wrapper
+    canvas.wrapperEl.addEventListener('contextmenu', (e) => e.preventDefault());
+
     addGridToCanvas(canvas);
     setFabricCanvas(canvas);
 
@@ -252,9 +255,14 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     // Consolidate all mouse:down handlers to avoid conflicts
     fabricCanvas.on("mouse:down", (e) => {
       // Handle right-click and ctrl+click for context menu first
-      if (e.e instanceof MouseEvent && (e.e.button === 2 || (e.e.ctrlKey && e.e.button === 0))) {
+      const isRightClick = e.e instanceof MouseEvent && e.e.button === 2;
+      const isCtrlClick = e.e instanceof MouseEvent && e.e.ctrlKey && e.e.button === 0;
+      
+      if (isRightClick || isCtrlClick) {
         e.e.preventDefault();
-        if (e.target) {
+        if (e.target && e.e instanceof MouseEvent) {
+          console.log("Context menu triggered for:", e.target);
+          const rect = fabricCanvas.wrapperEl.getBoundingClientRect();
           showContextMenu(e.e.clientX, e.e.clientY, e.target);
         }
         return;
