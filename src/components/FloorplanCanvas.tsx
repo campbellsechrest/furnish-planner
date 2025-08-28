@@ -7,6 +7,7 @@ import { useContextMenu } from "@/hooks/useContextMenu";
 interface FloorplanCanvasProps {
   activeTool: string;
   onObjectSelect?: (object: any) => void;
+  onFurnitureDoubleClick?: (furniture: any) => void;
 }
 
 export interface FloorplanCanvasRef {
@@ -17,7 +18,7 @@ export interface FloorplanCanvasRef {
   canRedo: () => boolean;
 }
 
-export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasProps>(({ activeTool, onObjectSelect }, ref) => {
+export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasProps>(({ activeTool, onObjectSelect, onFurnitureDoubleClick }, ref) => {
   console.log("FloorplanCanvas rendering with activeTool:", activeTool);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -681,41 +682,13 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       dragStartedRef.current = false;
     });
 
-    // Handle double-click for inline text editing
+    // Handle double-click for furniture details dialog and room text editing
     fabricCanvas.on("mouse:dblclick", (e) => {
-      if (e.target && (e.target as any).furnitureText) {
-        const group = e.target;
-        const textObject = (group as any).furnitureText;
-        textObject.set({ selectable: true, editable: true, evented: true });
-        const objects = (group as any)._objects;
-        fabricCanvas.remove(group);
-        objects.forEach((obj: any) => fabricCanvas.add(obj));
-        fabricCanvas.setActiveObject(textObject);
-        textObject.enterEditing();
-        setIsEditingText(true);
-        textObject.on('editing:exited', () => {
-          setIsEditingText(false);
-          const rect = objects[0];
-          textObject.set({ selectable: false, editable: false, evented: false });
-          const newGroup = new Group([rect, textObject], {
-            left: rect.left,
-            top: rect.top,
-            selectable: true,
-            hasControls: true,
-            hasBorders: true,
-            cornerColor: "#3b82f6",
-            cornerSize: 8,
-            transparentCorners: false,
-          });
-          (newGroup as any).furnitureText = textObject;
-          (newGroup as any).furnitureData = (group as any).furnitureData;
-          fabricCanvas.remove(rect);
-          fabricCanvas.remove(textObject);
-          fabricCanvas.add(newGroup);
-          fabricCanvas.setActiveObject(newGroup);
-          fabricCanvas.renderAll();
-          toast("Text updated");
-        });
+      if (e.target && (e.target as any).isFurniture) {
+        // Open furniture details dialog instead of text editing
+        if (onFurnitureDoubleClick) {
+          onFurnitureDoubleClick(e.target);
+        }
       } else if (e.target && (e.target as any).roomText) {
         const group = e.target;
         const textObject = (group as any).roomText as IText;

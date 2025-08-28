@@ -4,6 +4,7 @@ import { DesignToolbar } from "@/components/DesignToolbar";
 import { FurnitureLibrary } from "@/components/FurnitureLibrary";
 import { PropertyPanel } from "@/components/PropertyPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { FurnitureDetailsDialog } from "@/components/FurnitureDetailsDialog";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -12,6 +13,8 @@ const Index = () => {
   const [selectedFurniture, setSelectedFurniture] = useState(null);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [furnitureDialogOpen, setFurnitureDialogOpen] = useState(false);
+  const [furnitureForDialog, setFurnitureForDialog] = useState(null);
   const canvasRef = useRef<FloorplanCanvasRef>(null);
 
   const handleToolChange = (tool: string) => {
@@ -76,6 +79,38 @@ const Index = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const handleFurnitureDoubleClick = (furniture: any) => {
+    setFurnitureForDialog(furniture);
+    setFurnitureDialogOpen(true);
+  };
+
+  const handleFurnitureNameUpdate = (newName: string) => {
+    // This function will be called from the dialog to update the furniture name
+    if (furnitureForDialog) {
+      // Update the furniture text object and data
+      if ((furnitureForDialog as any).furnitureText) {
+        (furnitureForDialog as any).furnitureText.set({ text: newName });
+        (furnitureForDialog as any).furnitureData.name = newName;
+        
+        // Force canvas to re-render to show the updated name
+        const canvas = canvasRef.current;
+        if (canvas) {
+          // Trigger a re-render by temporarily setting the object as dirty
+          (furnitureForDialog as any).furnitureText.dirty = true;
+          toast(`Furniture name updated to: ${newName}`);
+        }
+      }
+    }
+  };
+
+  const getFurnitureDimensions = () => {
+    if (!furnitureForDialog) return { width: 0, height: 0 };
+    
+    // Get the actual canvas dimensions of the furniture
+    const bounds = furnitureForDialog.getBoundingRect?.() || { width: 0, height: 0 };
+    return { width: bounds.width, height: bounds.height };
+  };
+
   console.log("Index component rendering with activeTool:", activeTool);
 
   return (
@@ -106,6 +141,7 @@ const Index = () => {
                 ref={canvasRef}
                 activeTool={activeTool}
                 onObjectSelect={handleObjectSelect}
+                onFurnitureDoubleClick={handleFurnitureDoubleClick}
               />
             </div>
           </ErrorBoundary>
@@ -117,6 +153,14 @@ const Index = () => {
             />
           </ErrorBoundary>
         </div>
+
+        <FurnitureDetailsDialog
+          isOpen={furnitureDialogOpen}
+          onClose={() => setFurnitureDialogOpen(false)}
+          furniture={furnitureForDialog}
+          onNameUpdate={handleFurnitureNameUpdate}
+          canvasDimensions={getFurnitureDimensions()}
+        />
       </div>
     </ErrorBoundary>
   );
