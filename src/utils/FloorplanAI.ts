@@ -71,12 +71,12 @@ export class FloorplanAI {
         };
       }
 
-      // Create image element for processing
+      // Create image element for processing and also keep URL
       const imageUrl = URL.createObjectURL(imageFile);
       const image = await this.loadImage(imageUrl);
       
-      // Analyze the floorplan
-      const analysisResult = await this.performAnalysis(image);
+      // Analyze the floorplan using URL input (more reliable for transformers.js)
+      const analysisResult = await this.performAnalysis(image, imageUrl);
       
       // Clean up
       URL.revokeObjectURL(imageUrl);
@@ -118,16 +118,16 @@ export class FloorplanAI {
     });
   }
 
-  private static async performAnalysis(image: HTMLImageElement): Promise<any> {
+  private static async performAnalysis(image: HTMLImageElement, imageUrl: string): Promise<any> {
     console.log('Performing AI analysis on floorplan...');
 
     try {
       // Object detection to find structural elements
-      const objectResults = await this.objectDetector(image);
+      const objectResults = await this.objectDetector(imageUrl);
       console.log('Object detection results:', objectResults);
 
       // Image segmentation to identify room boundaries
-      const segmentationResults = await this.imageSegmenter(image);
+      const segmentationResults = await this.imageSegmenter(imageUrl);
       console.log('Segmentation results:', segmentationResults);
 
       // Process and combine results
