@@ -179,6 +179,19 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         height: 800,
         backgroundColor: "#fafafa",
         selection: true,
+        // Performance optimizations for smooth dragging
+        renderOnAddRemove: false,
+        skipTargetFind: false,
+        preserveObjectStacking: true,
+        // Smooth object movement
+        targetFindTolerance: 10,
+        hoverCursor: 'move',
+        moveCursor: 'move',
+        // Enable requestAnimationFrame for smoother rendering
+        enableRetinaScaling: true,
+        // Optimize transformations
+        centeredScaling: false,
+        centeredRotation: false,
       });
       console.log("FabricCanvas created successfully:", canvas);
     } catch (error) {
@@ -772,35 +785,38 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       }
     });
 
-    // Handle object movement and scaling to update dimensions
+    // Handle object movement - smooth with dynamic grid snapping
     fabricCanvas.on("object:moving", (e) => {
-      // Snap to grid during movement
       if (e.target) {
-        snapObjectToGrid(e.target);
-        fabricCanvas.renderAll();
+        // Dynamic grid snapping during movement
+        const obj = e.target;
+        const threshold = gridSize / 2; // Snap when within half grid size
+        
+        // Calculate nearest grid points
+        const nearestLeft = snapToGrid(obj.left, gridSize);
+        const nearestTop = snapToGrid(obj.top, gridSize);
+        
+        // Apply snapping if within threshold
+        if (Math.abs(obj.left - nearestLeft) <= threshold) {
+          obj.set({ left: nearestLeft });
+        }
+        if (Math.abs(obj.top - nearestTop) <= threshold) {
+          obj.set({ top: nearestTop });
+        }
+        
+        // Update room dimensions when room is moved
+        if ((obj as any).id && (obj as any).id.startsWith('room_')) {
+          updatePersistentRoomDimensions(obj);
+        }
       }
       
+      // Update delete button position smoothly during movement
       if (e.target === selectedObject) {
         updateDeleteButtonPosition(e.target);
-      }
-      // Update room dimensions when room is moved
-      if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
-        updatePersistentRoomDimensions(e.target);
       }
     });
 
     fabricCanvas.on("object:scaling", (e) => {
-      // Snap size to grid during scaling
-      if (e.target) {
-        snapObjectSizeToGrid(e.target);
-        fabricCanvas.renderAll();
-      }
-      
-      // Update room dimensions when room is scaled
-      if ((e.target as any).id && (e.target as any).id.startsWith('room_')) {
-        updatePersistentRoomDimensions(e.target);
-      }
-      
       // Keep text centered and maintain size during scaling
       updateTextPositionAndSize(e.target);
     });
