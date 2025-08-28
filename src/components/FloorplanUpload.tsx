@@ -3,9 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
-import { Upload, FileImage, FileText, Loader2 } from "lucide-react";
+import { Upload, FileImage, FileText, Loader2, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { FloorplanAI } from "@/utils/FloorplanAI";
+import { validateFile, createSecureObjectURL, revokeSecureObjectURL } from "@/utils/fileValidator";
+import { validateFloorplanData } from "@/utils/dataValidator";
 
 interface FloorplanUploadProps {
   isOpen: boolean;
@@ -20,34 +22,31 @@ export const FloorplanUpload = ({ isOpen, onClose, onFloorplanAnalyzed }: Floorp
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
 
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-    if (!validTypes.includes(selectedFile.type)) {
-      toast.error("Please upload a JPEG, PNG, or PDF file");
+    // Comprehensive security validation
+    const validationResult = await validateFile(selectedFile);
+    if (!validationResult.isValid) {
+      toast.error(validationResult.error || "File validation failed");
       return;
     }
 
-    // Validate file size (max 10MB)
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      toast.error("File size must be less than 10MB");
-      return;
-    }
+    const sanitizedFile = validationResult.sanitizedFile || selectedFile;
+    setFile(sanitizedFile);
 
-    setFile(selectedFile);
-
-    // Create preview for images
-    if (selectedFile.type.startsWith('image/')) {
-      const url = URL.createObjectURL(selectedFile);
-      setPreviewUrl(url);
+    // Create secure preview for images
+    if (sanitizedFile.type.startsWith('image/')) {
+      const url = createSecureObjectURL(sanitizedFile);
+      if (url) {
+        setPreviewUrl(url);
+      }
     } else {
       setPreviewUrl(null);
     }
 
-    toast.success("File selected successfully");
+    toast.success("File validated and selected successfully");
   };
 
   const handleDrop = (event: React.DragEvent) => {
@@ -96,9 +95,15 @@ export const FloorplanUpload = ({ isOpen, onClose, onFloorplanAnalyzed }: Floorp
       setProgress(100);
 
       if (floorplanData.success) {
-        toast.success("Floorplan analyzed successfully!");
-        onFloorplanAnalyzed(floorplanData.data);
-        onClose();
+        // Validate AI output for security
+        const validatedData = validateFloorplanData(floorplanData.data);
+        if (validatedData) {
+          toast.success("Floorplan analyzed and validated successfully!");
+          onFloorplanAnalyzed(validatedData);
+          onClose();
+        } else {
+          toast.error("Floorplan analysis produced invalid data");
+        }
       } else {
         toast.error(floorplanData.error || "Failed to analyze floorplan");
       }
@@ -113,7 +118,7 @@ export const FloorplanUpload = ({ isOpen, onClose, onFloorplanAnalyzed }: Floorp
 
   const handleClose = () => {
     if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
+      revokeSecureObjectURL(previewUrl);
     }
     setFile(null);
     setPreviewUrl(null);
@@ -126,9 +131,13 @@ export const FloorplanUpload = ({ isOpen, onClose, onFloorplanAnalyzed }: Floorp
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Upload Floorplan</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-primary" />
+            Upload Floorplan
+          </DialogTitle>
           <DialogDescription>
-            Upload a JPEG, PNG, or PDF file of your floorplan for AI analysis and recreation
+            Upload a JPEG, PNG, or PDF file of your floorplan for AI analysis and recreation.
+            All files undergo comprehensive security validation.
           </DialogDescription>
         </DialogHeader>
 

@@ -3,6 +3,7 @@ import { Canvas as FabricCanvas, Rect, Line, Text, Group, IText, util } from "fa
 import { toast } from "sonner";
 import { ContextMenu } from "./ContextMenu";
 import { useContextMenu } from "@/hooks/useContextMenu";
+import { validateJsonData, validateFurnitureData, validateCanvasObject } from "@/utils/dataValidator";
 
 interface FloorplanCanvasProps {
   activeTool: string;
@@ -249,7 +250,20 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
           return;
         }
 
-        const furniture = JSON.parse(furnitureData);
+        // Validate JSON data for security
+        const parsedData = validateJsonData(furnitureData);
+        if (!parsedData) {
+          toast.error("Invalid furniture data");
+          return;
+        }
+
+        // Validate furniture structure
+        const furniture = validateFurnitureData(parsedData);
+        if (!furniture) {
+          toast.error("Invalid furniture format");
+          return;
+        }
+
         const rect = canvas.wrapperEl.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
@@ -261,6 +275,7 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
         createFurnitureObjectOnCanvas(canvas, furniture, snappedX, snappedY);
       } catch (error) {
         console.error("Error dropping furniture:", error);
+        toast.error("Failed to add furniture");
       }
     };
 
@@ -282,15 +297,21 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
   const createFurnitureObjectOnCanvas = (canvas: FabricCanvas, furniture: any, x: number, y: number) => {
     console.log("Creating furniture object:", furniture.name, "at", x, y);
 
-    // Parse dimensions (e.g., "84\" x 36\"" -> width: 84, height: 36)
-    const dimensions = furniture.dimensions.match(/(\d+).*?x.*?(\d+)/);
-    const width = dimensions ? parseInt(dimensions[1]) : 60;
-    const height = dimensions ? parseInt(dimensions[2]) : 40;
+    // Validate coordinates are within canvas bounds
+    const canvasWidth = canvas.getWidth();
+    const canvasHeight = canvas.getHeight();
+    const safeX = Math.max(0, Math.min(x, canvasWidth - 50));
+    const safeY = Math.max(0, Math.min(y, canvasHeight - 50));
 
-    // Create furniture rectangle
+    // Parse dimensions with security validation (e.g., "84\" x 36\"" -> width: 84, height: 36)
+    const dimensions = furniture.dimensions.match(/(\d+).*?x.*?(\d+)/);
+    const width = dimensions ? Math.min(Math.max(parseInt(dimensions[1]), 10), 500) : 60;
+    const height = dimensions ? Math.min(Math.max(parseInt(dimensions[2]), 10), 500) : 40;
+
+    // Create furniture rectangle with validated properties
     const furnitureRect = new Rect({
-      left: x,
-      top: y,
+      left: safeX,
+      top: safeY,
       width: width,
       height: height,
       fill: getColorFromBg(furniture.color),
@@ -304,10 +325,11 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
       transparentCorners: false,
     });
 
-    // Create furniture label with inline editing
-    const furnitureText = new IText(furniture.name, {
-      left: x + width / 2,
-      top: y + height / 2,
+    // Create furniture label with inline editing and sanitized text
+    const sanitizedName = furniture.name.substring(0, 50); // Limit length
+    const furnitureText = new IText(sanitizedName, {
+      left: safeX + width / 2,
+      top: safeY + height / 2,
       fontSize: 14,
       fill: "#1e40af",
       fontFamily: "Arial",
@@ -322,8 +344,8 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
 
     // Group furniture and text together
     const group = new Group([furnitureRect, furnitureText], {
-      left: x,
-      top: y,
+      left: safeX,
+      top: safeY,
       selectable: true,
       hasControls: true,
       hasBorders: true,

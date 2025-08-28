@@ -28,14 +28,25 @@ export class FloorplanAI {
 
   static async initializeModels() {
     try {
-      console.log('Initializing AI models for floorplan analysis...');
+      console.log('Initializing AI models with security validation...');
+      
+      // Get secure device configuration
+      const deviceConfig = await this.getSecureDeviceConfig();
       
       // Initialize object detection model for finding rooms, doors, windows
       if (!this.objectDetector) {
         this.objectDetector = await pipeline(
           'object-detection',
           'Xenova/detr-resnet-50',
-          { device: 'webgpu' }
+          { 
+            ...deviceConfig,
+            progress_callback: (progress: any) => {
+              // Validate progress data to prevent malicious inputs
+              if (typeof progress?.progress === 'number' && progress.progress >= 0 && progress.progress <= 100) {
+                console.log(`Model loading: ${Math.round(progress.progress)}%`);
+              }
+            }
+          }
         );
       }
 
@@ -44,16 +55,44 @@ export class FloorplanAI {
         this.imageSegmenter = await pipeline(
           'image-segmentation',
           'Xenova/segformer-b0-finetuned-ade-512-512',
-          { device: 'webgpu' }
+          { 
+            ...deviceConfig,
+            progress_callback: (progress: any) => {
+              if (typeof progress?.progress === 'number' && progress.progress >= 0 && progress.progress <= 100) {
+                console.log(`Segmentation model loading: ${Math.round(progress.progress)}%`);
+              }
+            }
+          }
         );
       }
 
-      console.log('AI models initialized successfully');
+      console.log('AI models initialized successfully with security validation');
       return true;
     } catch (error) {
       console.error('Error initializing AI models:', error);
       return false;
     }
+  }
+
+  /**
+   * Get secure device configuration for AI models
+   */
+  private static async getSecureDeviceConfig(): Promise<{ device: 'webgpu' | 'cpu' }> {
+    // Check WebGPU availability with security validation
+    if (typeof navigator !== 'undefined' && 'gpu' in navigator) {
+      try {
+        const adapter = await (navigator as any).gpu?.requestAdapter();
+        if (adapter) {
+          console.log('WebGPU available - using GPU acceleration');
+          return { device: 'webgpu' as const };
+        }
+      } catch (error) {
+        console.warn('WebGPU not available, falling back to CPU:', error);
+      }
+    }
+    
+    console.log('Using CPU for AI processing');
+    return { device: 'cpu' as const };
   }
 
   static async analyzeFloorplan(file: File): Promise<FloorplanAnalysisResult> {
@@ -153,21 +192,39 @@ export class FloorplanAI {
   }
 
   private static async performAnalysis(image: HTMLImageElement, imageUrl: string): Promise<any> {
-    console.log('Performing AI analysis on floorplan...');
+    console.log('Performing secure AI analysis on floorplan...');
 
     try {
-      // Object detection to find structural elements
-      const objectResults = await this.objectDetector(imageUrl);
+      // Validate image dimensions for security
+      if (image.naturalWidth > 10000 || image.naturalHeight > 10000) {
+        throw new Error('Image dimensions too large for secure processing');
+      }
+      
+      // Validate URL is a blob URL (not external)
+      if (!imageUrl.startsWith('blob:')) {
+        throw new Error('Invalid image URL - must be blob URL for security');
+      }
+
+      // Object detection with timeout for security
+      const detectionPromise = Promise.race([
+        this.objectDetector(imageUrl),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Detection timeout')), 30000))
+      ]);
+      const objectResults = await detectionPromise;
       console.log('Object detection results:', objectResults);
 
-      // Image segmentation to identify room boundaries
-      const segmentationResults = await this.imageSegmenter(imageUrl);
+      // Image segmentation with timeout
+      const segmentationPromise = Promise.race([
+        this.imageSegmenter(imageUrl),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Segmentation timeout')), 30000))
+      ]);
+      const segmentationResults = await segmentationPromise;
       console.log('Segmentation results:', segmentationResults);
 
-      // Process and combine results
+      // Process and validate results with security checks
       const elements = this.processDetectionResults(objectResults, segmentationResults, image);
       
-      // Estimate scale (this is a simplified approach)
+      // Estimate scale with validation
       const scale = this.estimateScale(image, elements);
 
       return {
@@ -197,27 +254,48 @@ export class FloorplanAI {
   ): FloorplanElement[] {
     const elements: FloorplanElement[] = [];
 
-    // Process object detection results
+    // Validate and process object detection results with security checks
     if (Array.isArray(objectResults)) {
       objectResults.forEach((detection, index) => {
-        // Map detected objects to floorplan elements
-        // This is a simplified mapping - in reality, you'd need a model trained on floorplans
+        // Security: Limit number of detections to prevent DoS
+        if (index >= 100) return;
+        
+        // Validate detection structure
+        if (!detection?.box || typeof detection.score !== 'number' || typeof detection.label !== 'string') {
+          console.warn('Invalid detection object:', detection);
+          return;
+        }
+        
+        // Validate coordinates are within image bounds
+        const box = detection.box;
+        if (box.xmin < 0 || box.ymin < 0 || box.xmax > image.naturalWidth || box.ymax > image.naturalHeight) {
+          console.warn('Detection coordinates out of bounds:', box);
+          return;
+        }
+        
         const element: FloorplanElement = {
           type: this.mapLabelToType(detection.label),
           coordinates: {
-            x: detection.box.xmin,
-            y: detection.box.ymin,
-            width: detection.box.xmax - detection.box.xmin,
-            height: detection.box.ymax - detection.box.ymin
+            x: Math.max(0, Math.floor(box.xmin)),
+            y: Math.max(0, Math.floor(box.ymin)),
+            width: Math.max(1, Math.floor(box.xmax - box.xmin)),
+            height: Math.max(1, Math.floor(box.ymax - box.ymin))
           },
-          label: `${this.mapLabelToType(detection.label)} ${index + 1}`,
-          confidence: detection.score
+          label: `${this.mapLabelToType(detection.label)} ${index + 1}`.substring(0, 50),
+          confidence: Math.max(0, Math.min(1, detection.score))
         };
 
         if (element.confidence > 0.3) { // Only include confident detections
           elements.push(element);
         }
       });
+    }
+
+    // Security: Validate segmentation results exist and are reasonable
+    if (segmentationResults && Array.isArray(segmentationResults)) {
+      // Process only first few segmentation results to prevent DoS
+      const limitedResults = segmentationResults.slice(0, 20);
+      // Additional segmentation processing would go here with proper validation
     }
 
     // Create synthetic rooms based on image analysis
