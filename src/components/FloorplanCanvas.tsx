@@ -16,6 +16,7 @@ export interface FloorplanCanvasRef {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  generateFromFloorplan: (floorplanData: any) => void;
 }
 
 export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasProps>(({ activeTool, onObjectSelect, onFurnitureDoubleClick }, ref) => {
@@ -1136,7 +1137,15 @@ export const FloorplanCanvas = forwardRef<FloorplanCanvasRef, FloorplanCanvasPro
     undo: undoCanvas,
     redo: redoCanvas,
     canUndo,
-    canRedo
+    canRedo,
+    generateFromFloorplan: (floorplanData: any) => {
+      if (fabricCanvas && floorplanData) {
+        import('@/utils/FloorplanGenerator').then(({ FloorplanGenerator }) => {
+          FloorplanGenerator.generateCanvasFromFloorplan(fabricCanvas, floorplanData);
+          saveCanvasState();
+        });
+      }
+    }
   }));
 
   return (

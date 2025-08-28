@@ -5,6 +5,8 @@ import { FurnitureLibrary } from "@/components/FurnitureLibrary";
 import { PropertyPanel } from "@/components/PropertyPanel";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FurnitureDetailsDialog } from "@/components/FurnitureDetailsDialog";
+import { FloorplanUpload } from "@/components/FloorplanUpload";
+import { FloorplanGenerator } from "@/utils/FloorplanGenerator";
 import { toast } from "sonner";
 
 const Index = () => {
@@ -15,6 +17,7 @@ const Index = () => {
   const [canRedo, setCanRedo] = useState(false);
   const [furnitureDialogOpen, setFurnitureDialogOpen] = useState(false);
   const [furnitureForDialog, setFurnitureForDialog] = useState(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const canvasRef = useRef<FloorplanCanvasRef>(null);
 
   const handleToolChange = (tool: string) => {
@@ -50,6 +53,10 @@ const Index = () => {
 
   const handleLoad = () => {
     toast("Loading project...");
+  };
+
+  const handleUpload = () => {
+    setUploadDialogOpen(true);
   };
 
   const handleClear = () => {
@@ -111,6 +118,16 @@ const Index = () => {
     return { width: bounds.width, height: bounds.height };
   };
 
+  const handleFloorplanAnalyzed = (floorplanData: any) => {
+    // Get the canvas instance and generate the floorplan
+    const canvas = canvasRef.current;
+    if (canvas && floorplanData) {
+      canvas.generateFromFloorplan(floorplanData);
+      toast("Floorplan recreated on canvas! You can now edit rooms and add furniture.");
+      console.log('Floorplan data processed:', floorplanData);
+    }
+  };
+
   console.log("Index component rendering with activeTool:", activeTool);
 
   return (
@@ -123,6 +140,7 @@ const Index = () => {
             onClear={handleClear}
             onSave={handleSave}
             onLoad={handleLoad}
+            onUpload={handleUpload}
             onUndo={handleUndo}
             onRedo={handleRedo}
             canUndo={canUndo}
@@ -160,6 +178,12 @@ const Index = () => {
           furniture={furnitureForDialog}
           onNameUpdate={handleFurnitureNameUpdate}
           canvasDimensions={getFurnitureDimensions()}
+        />
+
+        <FloorplanUpload
+          isOpen={uploadDialogOpen}
+          onClose={() => setUploadDialogOpen(false)}
+          onFloorplanAnalyzed={handleFloorplanAnalyzed}
         />
       </div>
     </ErrorBoundary>

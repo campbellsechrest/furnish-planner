@@ -10,7 +10,8 @@ import {
   Redo, 
   Save,
   FolderOpen,
-  Trash2
+  Trash2,
+  Upload
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +21,7 @@ interface DesignToolbarProps {
   onClear: () => void;
   onSave: () => void;
   onLoad: () => void;
+  onUpload: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -32,6 +34,7 @@ export const DesignToolbar = ({
   onClear, 
   onSave, 
   onLoad,
+  onUpload,
   onUndo,
   onRedo,
   canUndo,
@@ -119,6 +122,16 @@ export const DesignToolbar = ({
           >
             <FolderOpen className="h-4 w-4 mr-2" />
             Load
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={onUpload}
+            className="h-10 px-3"
+            title="Upload Floorplan"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Upload
           </Button>
           <Button 
             variant="destructive" 
